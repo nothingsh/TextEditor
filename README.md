@@ -7,16 +7,22 @@
 ```swift
 import TextEditor
 
-ZStack {
-    Color(hex: "97DBAE")
-        .edgesIgnoringSafeArea(.all)
-    RichTextEditor(richText: richText)
-        .padding(10)
-        .background(
-            Rectangle()
-                .stroke(lineWidth: 1)
-        )
-        .padding()
+struct ContentView: View {
+    let richText = NSMutableAttributedString()
+    
+    var body: some View {
+        ZStack {
+            Color(hex: "97DBAE")
+                .edgesIgnoringSafeArea(.all)
+            RichTextEditor(richText: richText)
+                .padding(10)
+                .background(
+                    Rectangle()
+                        .stroke(lineWidth: 1)
+                )
+                .padding()
+        }
+    }
 }
 ```
 
