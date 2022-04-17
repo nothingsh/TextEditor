@@ -9,13 +9,13 @@ import UIKit
 
 protocol TextEditorDelegate: AnyObject {
     // Font
-    func textBold(fontSize: CGFloat) -> Bool
-    func textItalic(fontSize: CGFloat) -> Bool
-    func textStrike() -> Bool
-    func textUnderline() -> Bool
-    func adjustFontSize(fontSize: CGFloat)
-    func textFont(name: String, fontSize: CGFloat)
+    func textBold()
+    func textItalic()
+    func textStrike()
+    func textUnderline()
+    func adjustFontSize(isIncrease: Bool)
     func textColor(color: UIColor)
+    func textFont(name: String)
     func insertImage()
     func textAlign(align: NSTextAlignment)
     func hideKeyboard()
