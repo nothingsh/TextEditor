@@ -110,7 +110,7 @@ final class TextEditorWrapper: UIViewControllerRepresentable {
         // MARK: - Image Picker
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            if let img = info[UIImagePickerController.InfoKey.editedImage] as? UIImage, var image = img.roundedImageWithBorder(color: .opaqueSeparator) {
+            if let img = info[UIImagePickerController.InfoKey.editedImage] as? UIImage, var image = img.roundedImageWithBorder(color: .secondarySystemBackground) {
                 textViewDidBeginEditing(parent.textView)
                 let newString = NSMutableAttributedString(attributedString: parent.textView.attributedText)
                 image = scaleImage(image: image, maxWidth: 180, maxHeight: 180)
