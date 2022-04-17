@@ -32,10 +32,10 @@ final class TextEditorWrapper: UIViewControllerRepresentable {
         self._height = height
         self.controller = UIViewController()
         self.textView = UITextView()
-        let rect = CGRect(x: 0, y: 0, width: 300, height: 40)
+        let rect = CGRect(x: 0, y: 0, width: 300, height: sections.contains(.color) ? 70 : 40)
         self.placeholder = placeholder
         
-        self.accessoryView = InputAccessoryView(frame: rect, accessorySections: sections)
+        self.accessoryView = InputAccessoryView(frame: rect, inputViewStyle: .default, accessorySections: sections)
     }
     
     func makeUIViewController(context: Context) -> some UIViewController {
@@ -135,27 +135,31 @@ final class TextEditorWrapper: UIViewControllerRepresentable {
             return scaledimage!
         }
         
-        // MARK: - Text Editor
+        // MARK: - Text Editor Delegate
         
         /// - If user doesn't selecte any text, make follow typing text bold
         /// - if user selected text contain bold, then make them plain, else make them bold
-        func textBold(fontSize: CGFloat) -> Bool {
+        func textBold() {
+            let attributes = parent.textView.selectedRange.isEmpty ? parent.textView.typingAttributes : selectedAttributes
+            let fontSize = getFontSize(attributes: attributes)
+            
             let defaultFont = UIFont.systemFont(ofSize: fontSize)
-            isBold = textEffect(type: UIFont.self, key: .font, value: UIFont.boldSystemFont(ofSize: fontSize), defaultValue: defaultFont)
-            return isBold
+            textEffect(type: UIFont.self, key: .font, value: UIFont.boldSystemFont(ofSize: fontSize), defaultValue: defaultFont)
         }
         
-        func textUnderline() -> Bool {
+        func textUnderline() {
             textEffect(type: Int.self, key: .underlineStyle, value: NSUnderlineStyle.single.rawValue, defaultValue: .zero)
         }
         
-        func textItalic(fontSize: CGFloat) -> Bool {
+        func textItalic() {
+            let attributes = parent.textView.selectedRange.isEmpty ? parent.textView.typingAttributes : selectedAttributes
+            let fontSize = getFontSize(attributes: attributes)
+            
             let defaultFont = UIFont.systemFont(ofSize: fontSize)
-            isItalic = textEffect(type: UIFont.self, key: .font, value: UIFont.italicSystemFont(ofSize: fontSize), defaultValue: defaultFont)
-            return isItalic
+            textEffect(type: UIFont.self, key: .font, value: UIFont.italicSystemFont(ofSize: fontSize), defaultValue: defaultFont)
         }
         
-        func textStrike() -> Bool {
+        func textStrike() {
             textEffect(type: Int.self, key: .strikethroughStyle, value: NSUnderlineStyle.single.rawValue, defaultValue: .zero)
         }
         
@@ -163,13 +167,20 @@ final class TextEditorWrapper: UIViewControllerRepresentable {
             parent.textView.textAlignment = align
         }
         
-        func adjustFontSize(fontSize: CGFloat) {
-            let defaultFont = UIFont.systemFont(ofSize: fontSize)
+        func adjustFontSize(isIncrease: Bool) {
             var font: UIFont
             
-            if isBold {
+            let maxFontSize: CGFloat = 18
+            let minFontSize: CGFloat = 10
+            
+            let attributes = parent.textView.selectedRange.isEmpty ? parent.textView.typingAttributes : selectedAttributes
+            let size = getFontSize(attributes: attributes)
+            let fontSize = size + CGFloat(isIncrease ? (size < maxFontSize ? 1 : 0) : (size > minFontSize ? -1 : 0))
+            let defaultFont = UIFont.systemFont(ofSize: fontSize)
+            
+            if isContainBoldFont(attributes: attributes) {
                 font = UIFont.boldSystemFont(ofSize: fontSize)
-            } else if isItalic {
+            } else if isContainItalicFont(attributes: attributes) {
                 font = UIFont.italicSystemFont(ofSize: fontSize)
             } else {
                 font = defaultFont
@@ -178,7 +189,10 @@ final class TextEditorWrapper: UIViewControllerRepresentable {
             textEffect(type: UIFont.self, key: .font, value: font, defaultValue: defaultFont)
         }
         
-        func textFont(name: String, fontSize: CGFloat) {
+        func textFont(name: String) {
+            let attributes = parent.textView.selectedRange.isEmpty ? parent.textView.typingAttributes : selectedAttributes
+            let fontSize = getFontSize(attributes: attributes)
+            
             fontName = name
             let defaultFont = UIFont.systemFont(ofSize: fontSize)
             let newFont = UIFont(name: fontName, size: fontSize) ?? defaultFont
@@ -215,17 +229,18 @@ final class TextEditorWrapper: UIViewControllerRepresentable {
         
         /// Add text attributes to text view
         /// - Returns:If text view's typing attributes revised, return true; if attributes are only for text in selected range, return false.
-        @discardableResult private func textEffect<T: Equatable>(type: T.Type, key: NSAttributedString.Key, value: Any, defaultValue: T) -> Bool {
+        private func textEffect<T: Equatable>(type: T.Type, key: NSAttributedString.Key, value: Any, defaultValue: T) {
             let range = parent.textView.selectedRange
             if !range.isEmpty {
                 let isContain = isContain(type: type, range: range, key: key, value: value)
                 let mutableString = NSMutableAttributedString(attributedString: parent.textView.attributedText)
                 if isContain {
                     mutableString.removeAttribute(key, range: range)
+                    if key == .font {
+                        mutableString.addAttributes([key : defaultValue], range: range)
+                    }
                 } else {
                     mutableString.addAttributes([key : value], range: range)
-                    // Make following text be standard
-                    parent.textView.typingAttributes.removeValue(forKey: key)
                 }
                 parent.textView.attributedText = mutableString
             } else {
@@ -233,10 +248,9 @@ final class TextEditorWrapper: UIViewControllerRepresentable {
                     parent.textView.typingAttributes[key] = defaultValue
                 } else {
                     parent.textView.typingAttributes[key] = value
-                    return true
                 }
+                parent.accessoryView.updateToolbar(typingAttributes: parent.textView.typingAttributes, textAlignment: parent.textView.textAlignment)
             }
-            return false
         }
         
         /// Find specific attribute in the range of text which user selected
@@ -254,8 +268,61 @@ final class TextEditorWrapper: UIViewControllerRepresentable {
             return isContain
         }
         
+        private func isContainBoldFont(attributes: [NSAttributedString.Key : Any]) -> Bool {
+            return attributes.contains { attribute in
+                if attribute.key == .font, let value = attribute.value as? UIFont {
+                    return value == UIFont.boldSystemFont(ofSize: value.pointSize)
+                } else {
+                    return false
+                }
+            }
+        }
+        
+        private func isContainItalicFont(attributes: [NSAttributedString.Key : Any]) -> Bool {
+            return attributes.contains { attribute in
+                if attribute.key == .font, let value = attribute.value as? UIFont {
+                    return value == UIFont.italicSystemFont(ofSize: value.pointSize)
+                } else {
+                    return false
+                }
+            }
+        }
+        
+        private func getFontSize(attributes: [NSAttributedString.Key : Any]) -> CGFloat {
+            if let value = attributes[.font] as? UIFont {
+                return value.pointSize
+            } else {
+                return UIFont.systemFontSize
+            }
+        }
+        
+        var selectedAttributes: [NSAttributedString.Key : Any] {
+            let textRange = parent.textView.selectedRange
+            if textRange.isEmpty {
+                return [:]
+            } else {
+                var textAttributes: [NSAttributedString.Key : Any] = [:]
+                parent.textView.attributedText.enumerateAttributes(in: textRange) { attributes, range, stop in
+                    for item in attributes {
+                        textAttributes[item.key] = item.value
+                    }
+                }
+                return textAttributes
+            }
+        }
+        
         
         // MARK: - Text View Delegate
+        
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            let textRange = parent.textView.selectedRange
+
+            if textRange.isEmpty {
+                parent.accessoryView.updateToolbar(typingAttributes: parent.textView.typingAttributes, textAlignment: parent.textView.textAlignment)
+            } else {
+                parent.accessoryView.updateToolbar(typingAttributes: selectedAttributes, textAlignment: parent.textView.textAlignment)
+            }
+        }
         
         func textViewDidBeginEditing(_ textView: UITextView) {
             if textView.attributedText.string == parent.placeholder {
