@@ -279,6 +279,9 @@ final class InputAccessoryView: UIInputView {
             stackView.addArrangedSubview(textFontLabel)
             stackView.addArrangedSubview(increaseFontButton)
         }
+        if accessorySections.contains(.image) {
+            stackView.addArrangedSubview(insertImageButton)
+        }
         
         stackView.addArrangedSubview(separator)
         if accessorySections.contains(.keyboard) {
