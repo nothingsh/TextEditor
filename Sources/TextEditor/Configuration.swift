@@ -7,11 +7,14 @@
 
 import SwiftUI
 
-public enum EditorSection {
-    case textStyle
+public enum EditorSection: CaseIterable {
+    case bold
+    case italic
+    case underline
+    case strike
     case fontAdjustment
     case textAlignment
-    case media
+    case color
     
-    public static let all: Array<EditorSection> = [.textStyle, .fontAdjustment, .textAlignment, .media]
+    case keyboard
 }
