@@ -8,7 +8,7 @@ public struct RichTextEditor: View {
     private let placeholder: String
     private let accessorySections: Array<EditorSection>
     
-    public init(richText: NSMutableAttributedString, placeholder: String = "Type ...", accessory sections: Array<EditorSection> = EditorSection.all) {
+    public init(richText: NSMutableAttributedString, placeholder: String = "Type ...", accessory sections: Array<EditorSection> = EditorSection.allCases) {
         self.richText = richText
         self.placeholder = placeholder
         self.accessorySections = sections
