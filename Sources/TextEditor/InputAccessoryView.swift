@@ -403,11 +403,3 @@ final class InputAccessoryView: UIInputView {
         }
     }
 }
-
-extension InputAccessoryView: UIScrollViewDelegate {
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        if scrollView.contentOffset.y != 0 {
-            scrollView.contentOffset.y = 0
-        }
-    }
-}
