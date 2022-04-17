@@ -26,7 +26,7 @@ struct ContentView: View {
 }
 ```
 
-<img src="preview.png" alt="Preview Image" width="250"/>
+<img src="toolbar.png" alt="Preview Image" width="250"/>
 
 
 ## Usage
