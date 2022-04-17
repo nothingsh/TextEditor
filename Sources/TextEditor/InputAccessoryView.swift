@@ -276,7 +276,7 @@ final class InputAccessoryView: UIInputView {
         }
         if accessorySections.contains(.fontAdjustment) {
             stackView.addArrangedSubview(decreaseFontButton)
-            stackView.addArrangedSubview(textFontLabel)
+            // stackView.addArrangedSubview(textFontLabel)
             stackView.addArrangedSubview(increaseFontButton)
         }
         if accessorySections.contains(.image) {
