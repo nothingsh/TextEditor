@@ -14,13 +14,15 @@ struct ContentView: View {
         ZStack {
             Color(hex: "97DBAE")
                 .edgesIgnoringSafeArea(.all)
-            RichTextEditor(richText: richText)
-                .padding(10)
-                .background(
-                    Rectangle()
-                        .stroke(lineWidth: 1)
-                )
-                .padding()
+            RichTextEditor(richText: richText) { _ in
+                // try to save edited rich text here
+            }
+            .padding(10)
+            .background(
+                Rectangle()
+                    .stroke(lineWidth: 1)
+            )
+            .padding()
         }
     }
 }
