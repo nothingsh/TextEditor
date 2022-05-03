@@ -21,19 +21,27 @@ final class TextEditorWrapper: UIViewControllerRepresentable {
     private let hintColor = UIColor.placeholderText
     private let defaultFontSize = UIFont.systemFontSize
     private let defaultFontName = "AvenirNext-Regular"
+    private let onCommit: ((NSAttributedString) -> Void)
     
     private var defaultFont: UIFont {
         return UIFont(name: defaultFontName, size: defaultFontSize) ?? .systemFont(ofSize: defaultFontSize)
     }
     
     // TODO: line width, line style
-    init(richText: NSMutableAttributedString, height: Binding<CGFloat>, placeholder: String, sections: Array<EditorSection>) {
+    init(
+        richText: NSMutableAttributedString,
+        height: Binding<CGFloat>,
+        placeholder: String,
+        sections: Array<EditorSection>,
+        onCommit: @escaping ((NSAttributedString) -> Void)
+    ) {
         self.richText = richText
         self._height = height
         self.controller = UIViewController()
         self.textView = UITextView()
         let rect = CGRect(x: 0, y: 0, width: 300, height: sections.contains(.color) ? 70 : 40)
         self.placeholder = placeholder
+        self.onCommit = onCommit
         
         self.accessoryView = InputAccessoryView(frame: rect, inputViewStyle: .default, accessorySections: sections)
     }
@@ -332,8 +340,10 @@ final class TextEditorWrapper: UIViewControllerRepresentable {
         }
         
         func textViewDidEndEditing(_ textView: UITextView) {
-            if textView.attributedText.string == "" {
+            if textView.attributedText.string == "" || textView.attributedText.string == parent.placeholder {
                 textView.attributedText = NSAttributedString(string: parent.placeholder)
+            } else {
+                parent.onCommit(textView.attributedText)
             }
         }
         
