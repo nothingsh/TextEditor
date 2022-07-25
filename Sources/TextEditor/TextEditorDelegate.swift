@@ -5,7 +5,7 @@
 //  Created by Steven Zhang on 3/12/22.
 //
 
-import UIKit
+import SwiftUI
 
 protocol TextEditorDelegate: AnyObject {
     // Font

@@ -8,7 +8,7 @@
 import SwiftUI
 
 @available(iOS 13.0, *)
-final class TextEditorWrapper: UIViewControllerRepresentable {
+struct TextEditorWrapper: UIViewControllerRepresentable {
     private var richText: NSMutableAttributedString
     @Binding private var height: CGFloat
     

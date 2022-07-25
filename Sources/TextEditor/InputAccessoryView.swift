@@ -5,7 +5,7 @@
 //  Created by Steven Zhang on 3/12/22.
 //
 
-import UIKit
+import SwiftUI
 
 @available(iOS 13.0, *)
 final class InputAccessoryView: UIInputView {
