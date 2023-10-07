@@ -8,14 +8,14 @@
 import SwiftUI
 
 public enum EditorSection: CaseIterable {
-    case bold
-    case italic
-    case underline
-    case strike
+    /// include bold, italic, underline, strike through font effects
+    case textStyle
+    /// include increase and decreas font size
     case fontAdjustment
+    /// text alignment
     case textAlignment
+    /// insert image
     case image
-    case color
-    
-    case keyboard
+    /// text color p
+    case colorPalette
 }

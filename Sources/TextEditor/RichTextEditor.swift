@@ -22,8 +22,14 @@ public struct RichTextEditor: View {
     }
     
     public var body: some View {
-        TextEditorWrapper(richText: richText, height: $dynamicHeight, placeholder: placeholder, sections: accessorySections, onCommit: onCommit)
-            .frame(minHeight: dynamicHeight, maxHeight: dynamicHeight)
+        TextEditorWrapper(
+            richText: richText,
+            height: $dynamicHeight,
+            placeholder: placeholder,
+            sections: accessorySections,
+            onCommit: onCommit
+        )
+        .frame(minHeight: dynamicHeight, maxHeight: dynamicHeight)
     }
 }
 

@@ -37,8 +37,8 @@ public extension UIColor {
 }
 
 class ColorLibrary {
-    static private let textColorHeses: [String] = ["000000", "DD4E48", "ED734A", "F1AA3E", "479D60", "5AC2C5", "50AAF8", "2355F6", "9123F4", "EA5CAE"]
-    static let textColors: [UIColor] = textColorHeses.map({ UIColor(hex: $0) })
+    static private let textColorHeses: [String] = ["DD4E48", "ED734A", "F1AA3E", "479D60", "5AC2C5", "50AAF8", "2355F6", "9123F4", "EA5CAE"]
+    static let textColors: [UIColor] = [UIColor.label] + textColorHeses.map({ UIColor(hex: $0) })
 }
 
 extension UIImage {
@@ -68,5 +68,12 @@ extension UIImage {
 extension NSRange {
     var isEmpty: Bool {
         return self.upperBound == self.lowerBound
+    }
+}
+
+extension CGSize {
+    /// min value of width and height
+    var minLength: CGFloat {
+        return min(self.width, self.height)
     }
 }

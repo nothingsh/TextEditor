@@ -39,14 +39,13 @@ struct TextEditorWrapper: UIViewControllerRepresentable {
         self._height = height
         self.controller = UIViewController()
         self.textView = UITextView()
-        let rect = CGRect(x: 0, y: 0, width: 300, height: sections.contains(.color) ? 70 : 40)
         self.placeholder = placeholder
         self.onCommit = onCommit
         
-        self.accessoryView = InputAccessoryView(frame: rect, inputViewStyle: .default, accessorySections: sections)
+        self.accessoryView = InputAccessoryView(inputViewStyle: .default, accessorySections: sections)
     }
     
-    func makeUIViewController(context: Context) -> some UIViewController {
+    func makeUIViewController(context: Context) -> UIViewController {
         setUpTextView()
         textView.delegate = context.coordinator
         context.coordinator.textViewDidChange(textView)
@@ -56,8 +55,10 @@ struct TextEditorWrapper: UIViewControllerRepresentable {
         return controller
     }
     
-    func updateUIViewController(_ uiViewController: UIViewControllerType, context: Context) {
-        
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        let width: CGFloat = uiViewController.view.frame.width
+        let height: CGFloat = self.accessoryView.isDisplayColorPalette ? 70 : 36
+        self.accessoryView.frame = CGRect(origin: .zero, size: CGSize(width: width, height: height))
     }
     
     func makeCoordinator() -> Coordinator {
