@@ -8,23 +8,35 @@
 import UIKit
 
 class ActionButton: UIButton {
-    private let size: CGFloat = 30
-    private var pointSizeRatio: CGFloat
+    private static let SYMBOL_SIZE: CGFloat = 32
+    private let size: CGFloat
+    var symbolName: String
     
-    init(systemName: String, ratio: CGFloat? = nil) {
-        self.pointSizeRatio = 0.8 * (ratio != nil ? ratio! : 1)
+    init(systemName: String, size: CGFloat = ActionButton.SYMBOL_SIZE) {
+        self.size = size
+        self.symbolName = systemName
         super.init(frame: CGRect(origin: .zero, size: .zero))
         
-        self.setImage(UIImage(systemName: systemName, withConfiguration: symbolConfiguration), for: .normal)
         self.backgroundColor = .clear
-        if ratio == nil {
-            self.widthAnchor.constraint(equalToConstant: self.size).isActive = true
-            self.heightAnchor.constraint(equalToConstant: self.size).isActive = true
-        }
+        self.setImage(systemName: systemName)
     }
     
     func setImage(systemName: String) {
-        self.setImage(UIImage(systemName: systemName, withConfiguration: symbolConfiguration), for: .normal)
+        guard let image = UIImage(systemName: systemName, withConfiguration: symbolConfiguration) else {
+            return
+        }
+        
+        guard image.size.height != 0 else {
+            return
+        }
+        
+        self.setImage(image, for: .normal)
+        
+        let ratio = image.size.width / image.size.height
+        let aspectRatio = (ratio > 1.1) ? ratio : 1
+        let adjustedWidth = self.size * aspectRatio
+        self.widthAnchor.constraint(equalToConstant: adjustedWidth).isActive = true
+        self.heightAnchor.constraint(equalToConstant: self.size).isActive = true
     }
     
     required init?(coder: NSCoder) {
@@ -32,6 +44,6 @@ class ActionButton: UIButton {
     }
     
     var symbolConfiguration: UIImage.SymbolConfiguration {
-        UIImage.SymbolConfiguration(pointSize: self.size * self.pointSizeRatio)
+        UIImage.SymbolConfiguration(pointSize: size * 0.85, weight: .light, scale: .small)
     }
 }

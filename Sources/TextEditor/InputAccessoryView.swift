@@ -12,7 +12,7 @@ final class InputAccessoryView: UIStackView {
     private var accessorySections: Array<EditorSection>
     private var textFontName: String = "AvenirNext-Regular"
     
-    private let padding: CGFloat = 5
+    private let edgePadding: CGFloat = 5
     private let cornerRadius: CGFloat = 4
     private let selectedColor = UIColor.separator
     private let containerBackgroundColor: UIColor = .systemBackground
@@ -35,37 +35,21 @@ final class InputAccessoryView: UIStackView {
     
     /// increase and decrease font size button, and font size label
     private lazy var fontSizeAdjustmentItems: [UIView] = {
-        let size: CGFloat = 24
+        let size: CGFloat = 27
         let textFontSizeLabel = UILabel()
         textFontSizeLabel.textAlignment = .center
-        textFontSizeLabel.font = UIFont.systemFont(ofSize: size * 0.75)
+        textFontSizeLabel.font = UIFont.systemFont(ofSize: size * 0.8, weight: .light)
         textFontSizeLabel.text = "\(Int(UIFont.systemFontSize))"
         textFontSizeLabel.textColor = .systemBlue
         textFontSizeLabel.translatesAutoresizingMaskIntoConstraints = false
-        textFontSizeLabel.widthAnchor.constraint(equalToConstant: size * 1).isActive = true
+        textFontSizeLabel.widthAnchor.constraint(equalToConstant: size * 1.1).isActive = true
         
-        let decreaseFontSizeButton = ActionButton(systemName: "minus.circle", ratio: 0.95)
+        let decreaseFontSizeButton = ActionButton(systemName: "minus.circle")
         decreaseFontSizeButton.addTarget(self, action: #selector(decreaseFontSize), for: .touchUpInside)
-        let increaseFontSizeButton = ActionButton(systemName: "plus.circle", ratio: 0.95)
+        let increaseFontSizeButton = ActionButton(systemName: "plus.circle")
         increaseFontSizeButton.addTarget(self, action: #selector(increaseFontSize), for: .touchUpInside)
         
         return [decreaseFontSizeButton, textFontSizeLabel, increaseFontSizeButton]
-    }()
-    
-    // TODO: remove separator
-    /// separator should be removed, and make tool bar a  horizontal scroll view in order to supporting more functionalities in the future
-    private lazy var separator: UIView = {
-        let separator = UIView()
-        let spacerWidthConstraint = separator.widthAnchor.constraint(equalToConstant: .greatestFiniteMagnitude)
-        spacerWidthConstraint.priority = .defaultLow
-        spacerWidthConstraint.isActive = true
-        return separator
-    }()
-    
-    private lazy var keyboardButton: ActionButton = {
-        let button = ActionButton(systemName: "keyboard.chevron.compact.down", ratio: 0.9)
-        button.addTarget(self, action: #selector(hideKeyboard(_:)), for: .touchUpInside)
-        return button
     }()
     
     var textAlignment: NSTextAlignment = .left {
@@ -75,13 +59,13 @@ final class InputAccessoryView: UIStackView {
     }
     
     private lazy var alignmentButton: ActionButton = {
-        let button = ActionButton(systemName: NSTextAlignment.left.imageName, ratio: 0.95)
+        let button = ActionButton(systemName: NSTextAlignment.left.imageName)
         button.addTarget(self, action: #selector(alignText(_:)), for: .touchUpInside)
         return button
     }()
     
     private lazy var insertImageButton: ActionButton = {
-        let button = ActionButton(systemName: "photo.on.rectangle.angled", ratio: 0.9)
+        let button = ActionButton(systemName: "photo.on.rectangle.angled")
         button.addTarget(self, action: #selector(insertImage(_:)), for: .touchUpInside)
         return button
     }()
@@ -92,54 +76,25 @@ final class InputAccessoryView: UIStackView {
         return button
     }()
     
+    private let colorSelectionSymbol = "pencil.tip"
     private lazy var colorSelectionButon: ActionButton = {
-        let button = ActionButton(systemName: "circle")
-        button.tintColor = ColorLibrary.textColors.first!
+        var symbolName: String = self.colorSelectionSymbol
+        if #available(iOS 14, *) {
+            symbolName = "paintpalette"
+        }
+        let button = ActionButton(systemName: symbolName)
+        if symbolName == self.colorSelectionSymbol {
+            button.tintColor = ColorLibrary.textColors.first!
+        }
         button.addTarget(self, action: #selector(toggleColorPalette(_:)), for: .touchUpInside)
         return button
     }()
-    
-    // Action Button Bar
-    private let toolbarHeight: CGFloat = 44
-    private var toolbar: UIStackView {
-        let stackView = UIStackView()
-        
-        if accessorySections.contains(.textStyle) {
-            for item in textStyleItems {
-                stackView.addArrangedSubview(item)
-            }
-        }
-        if accessorySections.contains(.fontAdjustment) {
-            for item in fontSizeAdjustmentItems {
-                stackView.addArrangedSubview(item)
-            }
-        }
-        if accessorySections.contains(.textAlignment) {
-            stackView.addArrangedSubview(alignmentButton)
-        }
-        if accessorySections.contains(.image) {
-            stackView.addArrangedSubview(insertImageButton)
-        }
-        if accessorySections.contains(.colorPalette) {
-            stackView.addArrangedSubview(colorSelectionButon)
-        }
-        
-        stackView.addArrangedSubview(separator)
-        stackView.addArrangedSubview(keyboardButton)
-        
-        stackView.axis = .horizontal
-        stackView.alignment = .center
-        stackView.spacing = padding
-        stackView.distribution = .fill
-        
-        return stackView
-    }
     
     // Color Palette Bar
     private let colorPaletteBarHeight: CGFloat = 33
     private lazy var colorPaletteBar: UIStackView = {
         let colorButtons = ColorLibrary.textColors.map { color in
-            let button = ActionButton(systemName: "circle.fill", ratio: 0.8)
+            let button = ActionButton(systemName: "circle.fill", size: 24)
             button.tintColor = color
             button.addTarget(self, action: #selector(selectTextColor(_:)), for: .touchUpInside)
             return button
@@ -148,7 +103,9 @@ final class InputAccessoryView: UIStackView {
         let containerView = UIStackView(arrangedSubviews: colorButtons)
         containerView.axis = .horizontal
         containerView.alignment = .center
-        containerView.spacing = padding/2
+        containerView.spacing = edgePadding / 2
+        containerView.backgroundColor = .clear
+        containerView.sizeToFit()
         
         return containerView
     }()
@@ -162,6 +119,9 @@ final class InputAccessoryView: UIStackView {
     
     // MARK: Initialization
     
+    var toolbarItems: [UIView] = []
+    var toolbarStack: UIView!
+    
     init(accessorySections: Array<EditorSection>) {
         self.accessorySections = accessorySections
         super.init(frame: .zero)
@@ -174,12 +134,71 @@ final class InputAccessoryView: UIStackView {
     }
     
     private func setupAccessoryView() {
-        self.addArrangedSubview(toolbar)
-        
         self.axis = .vertical
         self.alignment = .leading
         self.distribution = .fillProportionally
         self.backgroundColor = .secondarySystemBackground
+        self.setupToolBar()
+    }
+    
+    private let toolbarHeight: CGFloat = 44
+    private func setupToolBar() {
+        self.toolbarStack = UIView()
+        
+        self.configureItems()
+        self.addArrangedSubview(self.toolbarStack)
+        self.toolbarStack.backgroundColor = .clear
+        self.toolbarStack.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            self.toolbarStack.leadingAnchor.constraint(equalTo: self.leadingAnchor),
+            self.toolbarStack.trailingAnchor.constraint(equalTo: self.trailingAnchor)
+        ])
+        
+        let scrollableBar = ScrollableToolbar(items: self.toolbarItems)
+        scrollableBar.backgroundColor = .clear
+        let keyboardEscape = UIButton()
+        let symbolConfiguration = UIImage.SymbolConfiguration(pointSize: 22, weight: .light)
+        let keyboardSymbolName = "keyboard.chevron.compact.down"
+        keyboardEscape.layer.borderWidth = 1
+        keyboardEscape.layer.cornerRadius = 5
+        keyboardEscape.layer.borderColor = UIColor.systemBlue.cgColor
+        keyboardEscape.addTarget(self, action: #selector(hideKeyboard), for: .touchUpInside)
+        keyboardEscape.setImage(UIImage(systemName: keyboardSymbolName, withConfiguration: symbolConfiguration), for: .normal)
+        
+        self.toolbarStack.addSubview(scrollableBar)
+        scrollableBar.translatesAutoresizingMaskIntoConstraints = false
+        self.toolbarStack.addSubview(keyboardEscape)
+        keyboardEscape.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            scrollableBar.leadingAnchor.constraint(equalTo: self.toolbarStack.leadingAnchor),
+            scrollableBar.trailingAnchor.constraint(equalTo: keyboardEscape.leadingAnchor),
+            scrollableBar.topAnchor.constraint(equalTo: self.toolbarStack.topAnchor),
+            scrollableBar.bottomAnchor.constraint(equalTo: self.toolbarStack.bottomAnchor),
+            scrollableBar.heightAnchor.constraint(equalTo: self.toolbarStack.heightAnchor),
+            
+            keyboardEscape.trailingAnchor.constraint(equalTo: self.toolbarStack.trailingAnchor),
+            keyboardEscape.centerYAnchor.constraint(equalTo: self.toolbarStack.centerYAnchor),
+            keyboardEscape.heightAnchor.constraint(equalTo: self.toolbarStack.heightAnchor),
+            keyboardEscape.widthAnchor.constraint(equalTo: keyboardEscape.heightAnchor)
+        ])
+    }
+    
+    private func configureItems() {
+        if accessorySections.contains(.textStyle) {
+            self.toolbarItems += textStyleItems
+        }
+        if accessorySections.contains(.fontAdjustment) {
+            self.toolbarItems += fontSizeAdjustmentItems
+        }
+        if accessorySections.contains(.textAlignment) {
+            self.toolbarItems.append(alignmentButton)
+        }
+        if accessorySections.contains(.image) {
+            self.toolbarItems.append(insertImageButton)
+        }
+        if accessorySections.contains(.colorPalette) {
+            self.toolbarItems.append(colorSelectionButon)
+        }
     }
     
     var isDisplayColorPalette: Bool {
@@ -200,8 +219,8 @@ final class InputAccessoryView: UIStackView {
             self.insertArrangedSubview(colorPaletteBar, at: 0)
         }
         // Get input accessory view's height constraint, default is equal to constant 44
-        let constraint = self.constraints.first
-        constraint?.constant = !hasAdditionalBar ? 77 : 44
+        let constraint = self.constraints[2]
+        constraint.constant = !hasAdditionalBar ? self.toolbarHeight + self.colorPaletteBarHeight : self.toolbarHeight
     }
     
     @objc private func hideKeyboard(_ button: UIButton) {
@@ -317,7 +336,9 @@ final class InputAccessoryView: UIStackView {
         guard let currentTextColor = attributeValue as? UIColor else {
             return
         }
-        self.colorSelectionButon.tintColor = currentTextColor
+        if self.colorSelectionButon.symbolName == self.colorSelectionSymbol {
+            self.colorSelectionButon.tintColor = currentTextColor
+        }
         
         guard self.contains(colorPaletteBar) else {
             return
