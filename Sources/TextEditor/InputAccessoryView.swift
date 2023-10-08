@@ -38,11 +38,11 @@ final class InputAccessoryView: UIStackView {
         let size: CGFloat = 24
         let textFontSizeLabel = UILabel()
         textFontSizeLabel.textAlignment = .center
-        textFontSizeLabel.font = UIFont.systemFont(ofSize: size * 0.8)
+        textFontSizeLabel.font = UIFont.systemFont(ofSize: size * 0.75)
         textFontSizeLabel.text = "\(Int(UIFont.systemFontSize))"
         textFontSizeLabel.textColor = .systemBlue
         textFontSizeLabel.translatesAutoresizingMaskIntoConstraints = false
-        textFontSizeLabel.widthAnchor.constraint(equalToConstant: size * 1.1).isActive = true
+        textFontSizeLabel.widthAnchor.constraint(equalToConstant: size * 1).isActive = true
         
         let decreaseFontSizeButton = ActionButton(systemName: "minus.circle", ratio: 0.95)
         decreaseFontSizeButton.addTarget(self, action: #selector(decreaseFontSize), for: .touchUpInside)
@@ -93,7 +93,7 @@ final class InputAccessoryView: UIStackView {
     }()
     
     private lazy var colorSelectionButon: ActionButton = {
-        let button = ActionButton(systemName: "circle.fill")
+        let button = ActionButton(systemName: "circle")
         button.tintColor = ColorLibrary.textColors.first!
         button.addTarget(self, action: #selector(toggleColorPalette(_:)), for: .touchUpInside)
         return button
@@ -258,61 +258,76 @@ final class InputAccessoryView: UIStackView {
         button.layer.backgroundColor = isSelected ? selectedColor.cgColor : UIColor.clear.cgColor
     }
     
+    // MARK: Update Tool Bar States
+    
     /// update toolbar buttons and colors based on current typing attributes
     func updateToolbar(typingAttributes: [NSAttributedString.Key : Any], textAlignment: NSTextAlignment) {
         self.alignmentButton.setImage(systemName: textAlignment.imageName)
         
         for attribute in typingAttributes {
             if attribute.key == .font {
-                let boldButton = self.textStyleItems[0] as! UIButton
-                let italicButton = self.textStyleItems[1] as! UIButton
-                
-                if let font = attribute.value as? UIFont {
-                    let fontSize = font.pointSize
-                    
-                    (self.fontSizeAdjustmentItems[1] as! UILabel).text = "\(Int(fontSize))"
-                    let isBold = (font == UIFont.boldSystemFont(ofSize: fontSize))
-                    let isItalic = (font == UIFont.italicSystemFont(ofSize: fontSize))
-                    self.selectedButton(boldButton, isSelected: isBold)
-                    self.selectedButton(italicButton, isSelected: isItalic)
-                } else {
-                    self.selectedButton(boldButton, isSelected: false)
-                    self.selectedButton(italicButton, isSelected: false)
-                }
+                self.updateFontRelatedItems(attributeValue: attribute.value)
             }
             
             if attribute.key == .underlineStyle {
-                let underlineButton = self.textStyleItems[2] as! UIButton
-                if let style = attribute.value as? Int {
-                    self.selectedButton(underlineButton, isSelected: style == NSUnderlineStyle.single.rawValue )
-                } else {
-                    self.selectedButton(underlineButton, isSelected: false)
-                }
+                self.updateTextStrikeItems(attributeValue: attribute.value, index: 2)
             }
             
             if attribute.key == .strikethroughStyle {
-                let strikeButton = self.textStyleItems[3] as! UIButton
-                if let style = attribute.value as? Int {
-                    self.selectedButton(strikeButton, isSelected: style == NSUnderlineStyle.single.rawValue)
-                }  else {
-                    self.selectedButton(strikeButton, isSelected: false)
-                }
+                self.updateTextStrikeItems(attributeValue: attribute.value, index: 3)
             }
             
-            if attribute.key == .foregroundColor, self.contains(colorPaletteBar) {
-                var textColor = ColorLibrary.textColors.first!
-                if let color = attribute.value as? UIColor {
-                    textColor = color
-                    self.colorSelectionButon.tintColor = color
-                }
-                for item in self.colorPaletteBar.arrangedSubviews {
-                    let button = item as! ActionButton
-                    if button.tintColor == textColor {
-                        button.setImage(systemName: "checkmark.circle.fill")
-                    } else {
-                        button.setImage(systemName: "circle.fill")
-                    }
-                }
+            if attribute.key == .foregroundColor {
+                self.updateColorPaletteItems(attributeValue: attribute.value)
+            }
+        }
+    }
+    
+    /// update font size and text bold, italic effects
+    private func updateFontRelatedItems(attributeValue: Any) {
+        let boldButton = self.textStyleItems[0] as! UIButton
+        let italicButton = self.textStyleItems[1] as! UIButton
+        
+        if let font = attributeValue as? UIFont {
+            let fontSize = font.pointSize
+            
+            (self.fontSizeAdjustmentItems[1] as! UILabel).text = "\(Int(fontSize))"
+            let isBold = (font == UIFont.boldSystemFont(ofSize: fontSize))
+            let isItalic = (font == UIFont.italicSystemFont(ofSize: fontSize))
+            self.selectedButton(boldButton, isSelected: isBold)
+            self.selectedButton(italicButton, isSelected: isItalic)
+        } else {
+            self.selectedButton(boldButton, isSelected: false)
+            self.selectedButton(italicButton, isSelected: false)
+        }
+    }
+    
+    /// update text underline and strike through effects
+    private func updateTextStrikeItems(attributeValue: Any, index: Int) {
+        let strikeButton = self.textStyleItems[index] as! UIButton
+        if let style = attributeValue as? Int {
+            self.selectedButton(strikeButton, isSelected: style == NSUnderlineStyle.single.rawValue)
+        }  else {
+            self.selectedButton(strikeButton, isSelected: false)
+        }
+    }
+    
+    /// update text color state
+    private func updateColorPaletteItems(attributeValue: Any) {
+        guard let currentTextColor = attributeValue as? UIColor else {
+            return
+        }
+        self.colorSelectionButon.tintColor = currentTextColor
+        
+        guard self.contains(colorPaletteBar) else {
+            return
+        }
+        for item in self.colorPaletteBar.arrangedSubviews {
+            let button = item as! ActionButton
+            if button.tintColor == currentTextColor {
+                button.setImage(systemName: "checkmark.circle.fill")
+            } else {
+                button.setImage(systemName: "circle.fill")
             }
         }
     }
