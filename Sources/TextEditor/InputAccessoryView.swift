@@ -8,7 +8,7 @@
 import SwiftUI
 
 @available(iOS 13.0, *)
-final class InputAccessoryView: UIInputView {
+final class InputAccessoryView: UIStackView {
     private var accessorySections: Array<EditorSection>
     private var textFontName: String = "AvenirNext-Regular"
     
@@ -16,33 +16,25 @@ final class InputAccessoryView: UIInputView {
     private let cornerRadius: CGFloat = 4
     private let selectedColor = UIColor.separator
     private let containerBackgroundColor: UIColor = .systemBackground
-    private let colorConf = UIImage.SymbolConfiguration(pointSize: 22, weight: .regular)
     
     weak var delegate: TextEditorDelegate!
     
     // MARK: Input Accessory
     
     /// buttons include bold, italic, underline, strike through effects
-    private lazy var textStyleStack: UIStackView = {
+    private lazy var textStyleItems: [UIView] = {
         var systemNames = ["bold", "italic", "underline", "strikethrough"]
         
-        let buttons = systemNames.enumerated().map { (index, systemName) in
+        return systemNames.enumerated().map { (index, systemName) in
             let button = ActionButton(systemName: systemName)
             button.addTarget(self, action: #selector(textStyle(_:)), for: .touchUpInside)
             button.tag = index + 1
             return button
         }
-
-        let stackView = UIStackView(arrangedSubviews: buttons)
-        stackView.distribution = .fillEqually
-        stackView.backgroundColor = .clear
-        stackView.spacing = padding
-        stackView.alignment = .center
-        return stackView
     }()
     
     /// increase and decrease font size button, and font size label
-    private lazy var fontSizeAdjustmentStack: UIStackView = {
+    private lazy var fontSizeAdjustmentItems: [UIView] = {
         let size: CGFloat = 24
         let textFontSizeLabel = UILabel()
         textFontSizeLabel.textAlignment = .center
@@ -52,17 +44,12 @@ final class InputAccessoryView: UIInputView {
         textFontSizeLabel.translatesAutoresizingMaskIntoConstraints = false
         textFontSizeLabel.widthAnchor.constraint(equalToConstant: size * 1.1).isActive = true
         
-        let increaseFontSizeButton = ActionButton(systemName: "minus.circle", ratio: 0.95)
-        increaseFontSizeButton.addTarget(self, action: #selector(decreaseFontSize), for: .touchUpInside)
-        let decreaseFontSizeButton = ActionButton(systemName: "plus.circle", ratio: 0.95)
-        decreaseFontSizeButton.addTarget(self, action: #selector(increaseFontSize), for: .touchUpInside)
+        let decreaseFontSizeButton = ActionButton(systemName: "minus.circle", ratio: 0.95)
+        decreaseFontSizeButton.addTarget(self, action: #selector(decreaseFontSize), for: .touchUpInside)
+        let increaseFontSizeButton = ActionButton(systemName: "plus.circle", ratio: 0.95)
+        increaseFontSizeButton.addTarget(self, action: #selector(increaseFontSize), for: .touchUpInside)
         
-        let stackView = UIStackView(arrangedSubviews: [increaseFontSizeButton, textFontSizeLabel, decreaseFontSizeButton])
-        stackView.distribution = .fillEqually
-        stackView.backgroundColor = .clear
-        stackView.spacing = padding
-        stackView.alignment = .center
-        return stackView
+        return [decreaseFontSizeButton, textFontSizeLabel, increaseFontSizeButton]
     }()
     
     // TODO: remove separator
@@ -101,25 +88,40 @@ final class InputAccessoryView: UIInputView {
     
     private lazy var fontSelectionButton: ActionButton = {
         let button = ActionButton(systemName: "textformat.size")
-        button.addTarget(self, action: #selector(showFontPalette(_:)), for: .touchUpInside)
+        button.addTarget(self, action: #selector(toggleFontPalette(_:)), for: .touchUpInside)
         return button
     }()
     
-    /// action button bar
+    private lazy var colorSelectionButon: ActionButton = {
+        let button = ActionButton(systemName: "circle.fill")
+        button.tintColor = ColorLibrary.textColors.first!
+        button.addTarget(self, action: #selector(toggleColorPalette(_:)), for: .touchUpInside)
+        return button
+    }()
+    
+    // Action Button Bar
+    private let toolbarHeight: CGFloat = 44
     private var toolbar: UIStackView {
         let stackView = UIStackView()
         
         if accessorySections.contains(.textStyle) {
-            stackView.addArrangedSubview(textStyleStack)
+            for item in textStyleItems {
+                stackView.addArrangedSubview(item)
+            }
         }
         if accessorySections.contains(.fontAdjustment) {
-            stackView.addArrangedSubview(fontSizeAdjustmentStack)
+            for item in fontSizeAdjustmentItems {
+                stackView.addArrangedSubview(item)
+            }
         }
         if accessorySections.contains(.textAlignment) {
             stackView.addArrangedSubview(alignmentButton)
         }
         if accessorySections.contains(.image) {
             stackView.addArrangedSubview(insertImageButton)
+        }
+        if accessorySections.contains(.colorPalette) {
+            stackView.addArrangedSubview(colorSelectionButon)
         }
         
         stackView.addArrangedSubview(separator)
@@ -133,12 +135,11 @@ final class InputAccessoryView: UIInputView {
         return stackView
     }
     
-    /// color palette bar
+    // Color Palette Bar
+    private let colorPaletteBarHeight: CGFloat = 33
     private lazy var colorPaletteBar: UIStackView = {
         let colorButtons = ColorLibrary.textColors.map { color in
-            let button = UIButton()
-            let colorConf = UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
-            button.setImage(UIImage(systemName: "circle.fill", withConfiguration: colorConf), for: .normal)
+            let button = ActionButton(systemName: "circle.fill", ratio: 0.8)
             button.tintColor = color
             button.addTarget(self, action: #selector(selectTextColor(_:)), for: .touchUpInside)
             return button
@@ -153,56 +154,54 @@ final class InputAccessoryView: UIInputView {
     }()
     
     // TODO: Support Fonts Selection
+    
     private lazy var fontPaletteBar: UIStackView = {
         let containerView = UIStackView()
         return containerView
     }()
     
-    // MARK: - Initialization
+    // MARK: Initialization
     
-    private var accessoryContentView: UIStackView
-    
-    init(inputViewStyle: UIInputView.Style, accessorySections: Array<EditorSection>) {
-        self.accessoryContentView = UIStackView()
+    init(accessorySections: Array<EditorSection>) {
         self.accessorySections = accessorySections
-        super.init(frame: .zero, inputViewStyle: inputViewStyle)
+        super.init(frame: .zero)
         
         self.setupAccessoryView()
     }
     
-    required init?(coder: NSCoder) {
+    required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
     private func setupAccessoryView() {
-        accessoryContentView.addArrangedSubview(toolbar)
-        if accessorySections.contains(.colorPalette) {
-            accessoryContentView.addArrangedSubview(colorPaletteBar)
-        }
+        self.addArrangedSubview(toolbar)
         
-        accessoryContentView.axis = .vertical
-        accessoryContentView.alignment = .leading
-        accessoryContentView.distribution = .fillProportionally
-        
-        addSubview(accessoryContentView)
-        backgroundColor = .secondarySystemBackground
-        accessoryContentView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            accessoryContentView.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 1.5*padding),
-            accessoryContentView.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -1.5*padding),
-            accessoryContentView.topAnchor.constraint(equalTo: self.topAnchor),
-            accessoryContentView.bottomAnchor.constraint(equalTo: self.bottomAnchor)
-        ])
+        self.axis = .vertical
+        self.alignment = .leading
+        self.distribution = .fillProportionally
+        self.backgroundColor = .secondarySystemBackground
     }
     
     var isDisplayColorPalette: Bool {
         return self.accessorySections.contains(.colorPalette)
     }
     
-    // MARK: - Actions
+    // MARK: Actions
     
-    @objc private func showFontPalette(_ button: UIButton) {
+    @objc private func toggleFontPalette(_ button: UIButton) {
         //
+    }
+    
+    @objc private func toggleColorPalette(_ button: UIButton) {
+        let hasAdditionalBar = self.arrangedSubviews.contains(colorPaletteBar)
+        if hasAdditionalBar {
+            self.colorPaletteBar.removeFromSuperview()
+        } else {
+            self.insertArrangedSubview(colorPaletteBar, at: 0)
+        }
+        // Get input accessory view's height constraint, default is equal to constant 44
+        let constraint = self.constraints.first
+        constraint?.constant = !hasAdditionalBar ? 77 : 44
     }
     
     @objc private func hideKeyboard(_ button: UIButton) {
@@ -265,13 +264,13 @@ final class InputAccessoryView: UIInputView {
         
         for attribute in typingAttributes {
             if attribute.key == .font {
-                let boldButton = self.textStyleStack.arrangedSubviews[0] as! UIButton
-                let italicButton = self.textStyleStack.arrangedSubviews[1] as! UIButton
+                let boldButton = self.textStyleItems[0] as! UIButton
+                let italicButton = self.textStyleItems[1] as! UIButton
                 
                 if let font = attribute.value as? UIFont {
                     let fontSize = font.pointSize
                     
-                    (self.fontSizeAdjustmentStack.arrangedSubviews[1] as! UILabel).text = "\(Int(fontSize))"
+                    (self.fontSizeAdjustmentItems[1] as! UILabel).text = "\(Int(fontSize))"
                     let isBold = (font == UIFont.boldSystemFont(ofSize: fontSize))
                     let isItalic = (font == UIFont.italicSystemFont(ofSize: fontSize))
                     self.selectedButton(boldButton, isSelected: isBold)
@@ -283,7 +282,7 @@ final class InputAccessoryView: UIInputView {
             }
             
             if attribute.key == .underlineStyle {
-                let underlineButton = self.textStyleStack.arrangedSubviews[2] as! UIButton
+                let underlineButton = self.textStyleItems[2] as! UIButton
                 if let style = attribute.value as? Int {
                     self.selectedButton(underlineButton, isSelected: style == NSUnderlineStyle.single.rawValue )
                 } else {
@@ -292,7 +291,7 @@ final class InputAccessoryView: UIInputView {
             }
             
             if attribute.key == .strikethroughStyle {
-                let strikeButton = self.textStyleStack.arrangedSubviews[3] as! UIButton
+                let strikeButton = self.textStyleItems[3] as! UIButton
                 if let style = attribute.value as? Int {
                     self.selectedButton(strikeButton, isSelected: style == NSUnderlineStyle.single.rawValue)
                 }  else {
@@ -300,17 +299,18 @@ final class InputAccessoryView: UIInputView {
                 }
             }
             
-            if attribute.key == .foregroundColor {
+            if attribute.key == .foregroundColor, self.contains(colorPaletteBar) {
                 var textColor = ColorLibrary.textColors.first!
                 if let color = attribute.value as? UIColor {
                     textColor = color
+                    self.colorSelectionButon.tintColor = color
                 }
                 for item in self.colorPaletteBar.arrangedSubviews {
-                    let button = item as! UIButton
+                    let button = item as! ActionButton
                     if button.tintColor == textColor {
-                        button.setImage(UIImage(systemName: "checkmark.circle.fill", withConfiguration: colorConf), for: .normal)
+                        button.setImage(systemName: "checkmark.circle.fill")
                     } else {
-                        button.setImage(UIImage(systemName: "circle.fill", withConfiguration: colorConf), for: .normal)
+                        button.setImage(systemName: "circle.fill")
                     }
                 }
             }

@@ -42,7 +42,7 @@ struct TextEditorWrapper: UIViewControllerRepresentable {
         self.placeholder = placeholder
         self.onCommit = onCommit
         
-        self.accessoryView = InputAccessoryView(inputViewStyle: .default, accessorySections: sections)
+        self.accessoryView = InputAccessoryView(accessorySections: sections)
     }
     
     func makeUIViewController(context: Context) -> UIViewController {
@@ -56,9 +56,7 @@ struct TextEditorWrapper: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
-        let width: CGFloat = uiViewController.view.frame.width
-        let height: CGFloat = self.accessoryView.isDisplayColorPalette ? 70 : 36
-        self.accessoryView.frame = CGRect(origin: .zero, size: CGSize(width: width, height: height))
+        self.accessoryView.frame = CGRect(x: 0, y: 0, width: 0, height: 44)
     }
     
     func makeCoordinator() -> Coordinator {
