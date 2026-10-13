@@ -25,28 +25,31 @@ public struct RichTextEditor: View {
         text: Binding<NSAttributedString>,
         context: RichTextContext? = nil,
         placeholder: String = "Type ...",
-        toolbar sections: [EditorSection] = EditorSection.allCases
+        toolbar: [EditorSection] = EditorSection.allCases
     ) {
         self.init(
             text: text,
             context: context,
             placeholder: placeholder,
-            toolbar: sections.isEmpty ? nil : RichTextToolbarConfiguration(sections: sections)
+            toolbar: toolbar.isEmpty ? nil : RichTextToolbarConfiguration(sections: toolbar)
         )
     }
 
     /// - Parameters:
+    ///   - text: The document. Updated on every edit.
+    ///   - context: Pass your own context to read formatting state or drive the editor from custom controls.
+    ///   - placeholder: Shown while the document is empty.
     ///   - toolbar: The keyboard toolbar's configuration, or `nil` for no keyboard toolbar.
     public init(
         text: Binding<NSAttributedString>,
         context: RichTextContext? = nil,
         placeholder: String = "Type ...",
-        toolbar configuration: RichTextToolbarConfiguration?
+        toolbar: RichTextToolbarConfiguration?
     ) {
         self._text = text
         self.externalContext = context
         self.placeholder = placeholder
-        self.toolbar = configuration
+        self.toolbar = toolbar
     }
 
     public var body: some View {
@@ -56,6 +59,24 @@ public struct RichTextEditor: View {
             placeholder: placeholder,
             toolbar: toolbar
         )
+    }
+}
+
+public extension View {
+    /// Turns typed Markdown such as `# `, `- ` or `**bold**` into formatting. On by default.
+    func markdownShortcuts(_ isEnabled: Bool) -> some View {
+        environment(\.isMarkdownShortcutsEnabled, isEnabled)
+    }
+}
+
+private struct MarkdownShortcutsKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    var isMarkdownShortcutsEnabled: Bool {
+        get { self[MarkdownShortcutsKey.self] }
+        set { self[MarkdownShortcutsKey.self] = newValue }
     }
 }
 
@@ -80,6 +101,7 @@ struct RichTextViewRepresentable: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.parent = self
         textView.placeholder = placeholder
+        textView.isMarkdownShortcutsEnabled = context.environment.isMarkdownShortcutsEnabled
 
         if editorContext.textView !== textView {
             connect(textView)

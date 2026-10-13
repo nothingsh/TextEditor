@@ -43,6 +43,9 @@ extension RichTextView {
     /// and a new paragraph after a heading starts as body text.
     override func insertText(_ text: String) {
         restoreTypingBlockStyle()
+        if applyMarkdownShortcut(typing: text) {
+            return
+        }
         guard text == "\n", markedTextRange == nil, selectedRange.length == 0 else {
             super.insertText(text)
             restoreTypingBlockStyle()
@@ -97,6 +100,7 @@ extension RichTextView {
         }
         restoreTypingBlockStyle()
         updateBlockDecorations()
+        setNeedsCaretScroll()
     }
 
     /// The block style of the caret's paragraph, or the style it will get once typed into.

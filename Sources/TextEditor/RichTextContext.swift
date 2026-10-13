@@ -91,6 +91,11 @@ public final class RichTextContext: ObservableObject {
         textView?.undoManager?.redo()
     }
 
+    /// Makes the editor first responder, showing the keyboard and toolbar.
+    public func focus() {
+        textView?.becomeFirstResponder()
+    }
+
     public func dismissKeyboard() {
         textView?.resignFirstResponder()
     }

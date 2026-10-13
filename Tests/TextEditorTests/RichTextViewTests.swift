@@ -112,6 +112,32 @@ final class RichTextViewTests: XCTestCase {
         XCTAssertEqual(textView.textStorage.attribute(.font, at: 0, effectiveRange: nil) as? UIFont, textView.defaultFont)
     }
 
+    // MARK: Scrolling
+
+    /// The editor grows instead of scrolling, so the enclosing scroll view must follow the caret.
+    func testCaretAtEndIsScrolledIntoEnclosingScrollView() throws {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 300))
+        let scrollView = UIScrollView(frame: window.bounds)
+        window.addSubview(scrollView)
+        window.makeKeyAndVisible()
+
+        textView.setContent(NSAttributedString(string: (1...40).map { "line \($0)" }.joined(separator: "\n")))
+        let height = textView.sizeThatFits(CGSize(width: 320, height: CGFloat.greatestFiniteMagnitude)).height
+        textView.frame = CGRect(x: 0, y: 0, width: 320, height: height)
+        scrollView.addSubview(textView)
+        scrollView.contentSize = textView.frame.size
+        try XCTSkipUnless(textView.becomeFirstResponder(), "Needs a window to become first responder")
+
+        textView.selectedRange = NSRange(location: textView.textStorage.length, length: 0)
+        textView.scrollCaretToVisible()
+
+        let caret = textView.convert(textView.caretRect(for: textView.endOfDocument), to: scrollView)
+        XCTAssertGreaterThan(scrollView.contentOffset.y, 0)
+        // The caret rect overhangs the last line slightly, and scrolling stops at the end of the content.
+        XCTAssertLessThanOrEqual(caret.midY, scrollView.contentOffset.y + scrollView.bounds.height)
+        textView.resignFirstResponder()
+    }
+
     // MARK: Binding
 
     func testEditsArePushedToBinding() {

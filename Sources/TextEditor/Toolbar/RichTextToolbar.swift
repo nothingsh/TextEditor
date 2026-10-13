@@ -5,8 +5,10 @@
 
 import SwiftUI
 
-/// The formatting toolbar. All state comes from `RichTextContext`, so it always matches the selection.
+/// The formatting toolbar: a floating capsule of controls, with the color palette in its own capsule above it.
+/// On iOS 26 both use Liquid Glass; earlier versions use a translucent material.
 ///
+/// All state comes from `RichTextContext`, so the toolbar always matches the selection.
 /// `RichTextEditor` shows it above the keyboard. To place it elsewhere, such as the bottom of an iPad screen,
 /// pass `toolbar: nil` to the editor and add this view yourself with the same context.
 public struct RichTextToolbar: View {
@@ -15,8 +17,9 @@ public struct RichTextToolbar: View {
 
     @State private var isShowingColorPalette = false
 
-    private let barHeight: CGFloat = 44
-    private let paletteHeight: CGFloat = 40
+    /// Rows get the same padding above and below, so controls sit in the middle of each capsule.
+    private let rowPadding: CGFloat = 6
+    private let capsuleSpacing: CGFloat = 8
 
     public init(context: RichTextContext, configuration: RichTextToolbarConfiguration = .default) {
         self.context = context
@@ -24,36 +27,47 @@ public struct RichTextToolbar: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            if isShowingColorPalette && configuration.sections.contains(.colorPalette) {
-                colorPalette
-                Divider()
-            }
-            HStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 4) {
-                        ForEach(configuration.sections, id: \.self) { section in
-                            items(for: section)
-                        }
-                        ForEach(configuration.customActions) { action in
-                            ToolbarButton(action.title, systemImage: action.systemImage, isActive: action.isActive(context)) {
-                                action.action(context)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 8)
+        GlassGroup(spacing: capsuleSpacing) {
+            VStack(spacing: capsuleSpacing) {
+                if isShowingColorPalette && configuration.sections.contains(.colorPalette) {
+                    colorPalette
+                        .toolbarCapsule()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                if configuration.showsDismissKeyboardButton {
-                    Divider()
-                        .frame(height: 24)
-                    ToolbarButton("Hide Keyboard", systemImage: "keyboard.chevron.compact.down") {
-                        context.dismissKeyboard()
-                    }
-                    .padding(.horizontal, 4)
-                }
+                controls
+                    .toolbarCapsule()
             }
-            .frame(height: barHeight)
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, rowPadding)
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isShowingColorPalette)
+    }
+
+    private var controls: some View {
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 2) {
+                    ForEach(configuration.sections, id: \.self) { section in
+                        items(for: section)
+                    }
+                    ForEach(configuration.customActions) { action in
+                        ToolbarButton(action.title, systemImage: action.systemImage, isActive: action.isActive(context)) {
+                            action.action(context)
+                        }
+                    }
+                }
+                .padding(.horizontal, rowPadding)
+            }
+            if configuration.showsDismissKeyboardButton {
+                Divider()
+                    .frame(height: 24)
+                ToolbarButton("Hide Keyboard", systemImage: "keyboard.chevron.compact.down") {
+                    context.dismissKeyboard()
+                }
+                .padding(.horizontal, rowPadding)
+            }
+        }
+        .padding(.vertical, rowPadding)
     }
 
     @ViewBuilder
@@ -137,31 +151,40 @@ public struct RichTextToolbar: View {
     }
 
     private var colorPalette: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(configuration.colors, id: \.self) { entry in
-                    let isSelected = entry.color.isEqual(context.textColor)
-                    Button {
-                        context.setTextColor(entry.color)
-                    } label: {
-                        Circle()
-                            .fill(Color(uiColor: entry.color))
-                            .frame(width: 24, height: 24)
-                            .overlay {
-                                if isSelected {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(Color(uiColor: .systemBackground))
-                                }
-                            }
-                    }
-                    .accessibilityLabel(entry.name)
-                    .accessibilityAddTraits(isSelected ? .isSelected : [])
-                }
+        // Hug the swatches when they fit; scroll when there are too many.
+        ViewThatFits(in: .horizontal) {
+            colorSwatches
+            ScrollView(.horizontal, showsIndicators: false) {
+                colorSwatches
             }
-            .padding(.horizontal, 12)
         }
-        .frame(height: paletteHeight)
+        .padding(.vertical, rowPadding)
+    }
+
+    private var colorSwatches: some View {
+        HStack(spacing: 4) {
+            ForEach(configuration.colors, id: \.self) { entry in
+                let isSelected = entry.color.isEqual(context.textColor)
+                Button {
+                    context.setTextColor(entry.color)
+                } label: {
+                    Circle()
+                        .fill(Color(uiColor: entry.color))
+                        .frame(width: 26, height: 26)
+                        .overlay {
+                            if isSelected {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(Color(uiColor: .systemBackground))
+                            }
+                        }
+                        .frame(width: 32, height: 36)
+                }
+                .accessibilityLabel(entry.name)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, rowPadding + 4)
     }
 }
 
@@ -196,9 +219,60 @@ struct ToolbarIcon: View {
             .font(.system(size: 17))
             .frame(width: 36, height: 36)
             .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isActive ? Color(uiColor: .tertiarySystemFill) : .clear)
+                Circle()
+                    .fill(isActive ? Color.primary.opacity(0.12) : .clear)
             )
+    }
+}
+
+// MARK: - Capsule Styling
+
+private extension View {
+    func toolbarCapsule() -> some View {
+        modifier(ToolbarCapsule())
+    }
+}
+
+/// Liquid Glass on iOS 26, a material capsule before that.
+private struct ToolbarCapsule: ViewModifier {
+    func body(content: Content) -> some View {
+        let clipped = content.clipShape(Capsule())
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            clipped.glassEffect(.regular.interactive(), in: Capsule())
+        } else {
+            material(clipped)
+        }
+        #else
+        material(clipped)
+        #endif
+    }
+
+    private func material(_ content: some View) -> some View {
+        content
+            .background(.regularMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
+            .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
+    }
+}
+
+/// Lets neighbouring glass capsules blend as they appear and disappear on iOS 26.
+private struct GlassGroup<Content: View>: View {
+    let spacing: CGFloat
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) {
+                content
+            }
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
     }
 }
 
