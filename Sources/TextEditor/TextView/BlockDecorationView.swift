@@ -65,15 +65,22 @@ final class BlockDecorationView: UIView {
     }
 
     /// The paragraph location of the checklist item whose checkbox is at `point`, in this view's coordinates.
-    /// The target is at least 44 points tall, so it's easy to hit.
+    /// Targets are at least 44 points tall so they're easy to hit, which makes neighbouring items' targets
+    /// overlap; a point in the overlap belongs to the nearer checkbox.
     func checklistItem(at point: CGPoint) -> Int? {
-        decorations.first { decoration in
-            guard case .checkbox = decoration.kind else {
-                return false
+        decorations
+            .compactMap { decoration -> (location: Int, distance: CGFloat)? in
+                guard case .checkbox = decoration.kind else {
+                    return nil
+                }
+                let box = checkboxFrame(for: decoration)
+                guard box.insetBy(dx: -8, dy: -max(4, (44 - box.height) / 2)).contains(point) else {
+                    return nil
+                }
+                return (decoration.paragraphLocation, abs(point.y - box.midY))
             }
-            let box = checkboxFrame(for: decoration)
-            return box.insetBy(dx: -8, dy: -max(4, (44 - box.height) / 2)).contains(point)
-        }?.paragraphLocation
+            .min { $0.distance < $1.distance }?
+            .location
     }
 
     override init(frame: CGRect) {

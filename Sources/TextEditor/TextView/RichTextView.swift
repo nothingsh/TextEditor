@@ -287,16 +287,24 @@ final class RichTextView: UITextView {
         decorationView.checklistItem(at: convert(point, to: decorationView))
     }
 
-    /// A tap on a checkbox ticks it instead of placing the caret, and doesn't bring up the keyboard.
+    /// A tap on a checkbox ticks it, and nothing else: no caret placement, which would scroll to the caret
+    /// or bring up the keyboard, no selection and no drag. Scrolling can still start on a checkbox.
+    ///
+    /// Text interaction uses several recognizers, and the one that places the caret isn't a tap recognizer,
+    /// so every recognizer but scrolling is held back.
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         let isOnCheckbox = checklistItem(at: gestureRecognizer.location(in: self)) != nil
         if gestureRecognizer === checklistTapRecognizer {
             return isOnCheckbox
         }
-        if isOnCheckbox, gestureRecognizer is UITapGestureRecognizer {
+        if isOnCheckbox && !isScrollingGesture(gestureRecognizer) {
             return false
         }
         return super.gestureRecognizerShouldBegin(gestureRecognizer)
+    }
+
+    func isScrollingGesture(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        gestureRecognizer === panGestureRecognizer || gestureRecognizer === pinchGestureRecognizer
     }
 
     @objc private func handleChecklistTap(_ recognizer: UITapGestureRecognizer) {

@@ -178,7 +178,28 @@ final class ListTests: XCTestCase {
 
         XCTAssertEqual(textView.checklistItem(at: center), 0)
         XCTAssertNil(textView.checklistItem(at: CGPoint(x: 200, y: center.y)))
-        XCTAssertTrue(textView.gestureRecognizers?.contains(textView.checklistTapRecognizer) ?? false)
+        XCTAssertTrue(textView.gestureRecognizers?.contains(textView.checklistTapRecognizer) ?? false)    }
+
+    func testNeighbouringCheckboxTargetsDontOverlap() throws {
+        textView.setContent(RichTextSerializer.attributedString(markdown: "- [ ] one\n- [ ] two\n- [ ] three", defaultFont: font))
+        let items = decorations
+        XCTAssertEqual(items.count, 3)
+        for item in items {
+            let box = textView.decorationView.checkboxFrame(for: item)
+            for y in [box.minY + 1, box.midY, box.maxY - 1] {
+                XCTAssertEqual(textView.decorationView.checklistItem(at: CGPoint(x: box.midX, y: y)), item.paragraphLocation,
+                               "y \(y) in the box of the item at \(item.paragraphLocation)")
+            }
+        }
+    }
+
+    func testOnlyScrollingCanStartOnACheckbox() {
+        // Caret placement on iOS 17 and later uses a recognizer that isn't a tap recognizer.
+        let textInteraction = (textView.gestureRecognizers ?? []).filter {
+            $0 !== textView.checklistTapRecognizer && !textView.isScrollingGesture($0)
+        }
+        XCTAssertFalse(textInteraction.isEmpty)
+        XCTAssertTrue(textView.isScrollingGesture(textView.panGestureRecognizer))
     }
 
     // MARK: Serialization
