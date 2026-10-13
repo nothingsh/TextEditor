@@ -3,7 +3,11 @@
 
 A SwiftUI rich text editor backed by `UITextView`, with a formatting toolbar above the keyboard.
 
-<img src="toolbar.png" alt="Preview Image" width="250"/>
+<p>
+  <img src="Screenshots/editor-light.png" alt="Editor in light mode" width="300"/>
+  &nbsp;
+  <img src="Screenshots/editor-dark.png" alt="Editor in dark mode" width="300"/>
+</p>
 
 ## Features
 
@@ -11,6 +15,7 @@ A SwiftUI rich text editor backed by `UITextView`, with a formatting toolbar abo
 - Headings, bulleted and numbered lists, quotes and code blocks, with Return and Delete behaving as in Notes
 - Links, font size, text color and per-paragraph alignment
 - Images inserted at the caret through the system photo picker (no permission prompt)
+- Markdown shortcuts while typing: `# `, `- `, `1. `, `> `, `**bold**`, `*italic*`, `~~strike~~` and backticks
 - Markdown, HTML and lossless archive import and export
 - Undo and redo for every edit, including formatting; ⌘B, ⌘I and ⌘U on hardware keyboards
 - A configurable toolbar whose state follows the selection, with dark mode and VoiceOver support
@@ -34,6 +39,15 @@ struct ContentView: View {
 ```
 
 The editor grows with its content, so place it in a `ScrollView` for long documents.
+
+### Markdown shortcuts
+
+Typing Markdown at the start of a paragraph or around a word turns it into formatting, and undo brings the Markdown back. Turn it off with a modifier:
+
+```swift
+RichTextEditor(text: $text)
+    .markdownShortcuts(false)
+```
 
 ### Configuring the toolbar
 
@@ -96,6 +110,14 @@ var body: some View {
 }
 ```
 
+## Example App
+
+`Example/TextEditorExample.xcodeproj` is a small notes app showing the editor, Markdown and HTML export, and draft saving. Open it and run; it uses this package from the parent folder. The project is generated from `Example/project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+
+## Documentation
+
+The package includes a DocC catalog with getting-started, toolbar and serialization guides. In Xcode, choose **Product › Build Documentation**.
+
 ## Installation
 
 Add the package in Xcode via **File › Add Package Dependencies…**, or in `Package.swift`:
@@ -117,7 +139,7 @@ Add the package in Xcode via **File › Add Package Dependencies…**, or in `Pa
 - [x] Links
 - [x] HTML and Markdown import and export
 - [x] Configurable toolbar items and colors
+- [x] Markdown shortcuts while typing
 - [ ] Checklists and nested lists
-- [ ] Markdown shortcuts while typing (`# `, `- `, `1. `)
 - [ ] Font selection
 - [ ] macOS support

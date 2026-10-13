@@ -22,6 +22,9 @@ final class RichTextView: UITextView {
     /// for an empty paragraph exists nowhere in the text yet, so it's remembered here with its caret location.
     var pendingBlockStyle: (location: Int, style: BlockStyle)?
 
+    /// Whether typed Markdown such as `# ` or `**bold**` turns into formatting.
+    var isMarkdownShortcutsEnabled = true
+
     /// Owned by the editor so its history isn't shared with other text fields in the window.
     private let editorUndoManager = UndoManager()
 
@@ -114,6 +117,7 @@ final class RichTextView: UITextView {
     @objc private func textDidChange() {
         updatePlaceholderVisibility()
         updateBlockDecorations()
+        setNeedsCaretScroll()
     }
 
     private var lastLayoutSize: CGSize = .zero
@@ -124,7 +128,51 @@ final class RichTextView: UITextView {
         if bounds.size != lastLayoutSize {
             lastLayoutSize = bounds.size
             updateBlockDecorations()
+            setNeedsCaretScroll()
         }
+    }
+
+    // MARK: Keeping the Caret Visible
+
+    private var isCaretScrollScheduled = false
+
+    /// The editor grows instead of scrolling, so a new line can land behind the keyboard toolbar. UIKit tries
+    /// to reveal the caret while typing, but before SwiftUI has grown the view, when the caret is still out of bounds.
+    /// This reveals it again on the next run loop turn, once layout has settled.
+    func setNeedsCaretScroll() {
+        guard isFirstResponder, !isScrollEnabled, !isCaretScrollScheduled else {
+            return
+        }
+        isCaretScrollScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            self?.isCaretScrollScheduled = false
+            self?.scrollCaretToVisible()
+        }
+    }
+
+    func scrollCaretToVisible() {
+        guard isFirstResponder, let position = selectedTextRange?.end, let scrollView = enclosingScrollView else {
+            return
+        }
+        let caret = caretRect(for: position)
+        guard !caret.isNull, !caret.isInfinite else {
+            return
+        }
+        // A little margin so the line isn't flush against the toolbar. Not animated, so fast typing never lags behind.
+        let target = convert(caret, to: scrollView).insetBy(dx: 0, dy: -12)
+        scrollView.scrollRectToVisible(target, animated: false)
+    }
+
+    /// The nearest scrolling ancestor, such as the `UIScrollView` behind a SwiftUI `ScrollView`.
+    private var enclosingScrollView: UIScrollView? {
+        var ancestor = superview
+        while let view = ancestor {
+            if let scrollView = view as? UIScrollView, scrollView.isScrollEnabled {
+                return scrollView
+            }
+            ancestor = view.superview
+        }
+        return nil
     }
 
     // MARK: Standard Edit Actions
