@@ -12,49 +12,70 @@ import UIKit
 /// to build custom toolbars or menus.
 @MainActor
 public final class RichTextContext: ObservableObject {
+    /// Character styles applied to the whole selection, or to the text typed next when there's only a caret.
     @Published public private(set) var activeStyles: Set<TextStyle> = []
+    /// The point size at the start of the selection, or of the text typed next.
     @Published public private(set) var fontSize: CGFloat = UIFont.preferredFont(forTextStyle: .body).pointSize
+    /// The text color at the start of the selection, or of the text typed next.
     @Published public private(set) var textColor: UIColor = .label
+    /// The alignment of the paragraph at the start of the selection.
     @Published public private(set) var alignment: NSTextAlignment = .natural
+    /// The block style shared by every paragraph the selection touches, or `.paragraph` when they differ.
     @Published public private(set) var blockStyle: BlockStyle = .paragraph
+    /// The link under the caret or at the start of the selection.
     @Published public private(set) var link: URL?
+    /// Whether ``undo()`` has anything to undo.
     @Published public private(set) var canUndo = false
+    /// Whether ``redo()`` has anything to redo.
     @Published public private(set) var canRedo = false
 
     weak var textView: RichTextView?
 
+    /// Creates a context that does nothing until it's passed to a ``RichTextEditor``.
     public init() {}
 
+    /// Whether `style` is in ``activeStyles``.
     public func isActive(_ style: TextStyle) -> Bool {
         activeStyles.contains(style)
     }
 
+    /// Whether ``fontSize`` is below the largest size the editor allows, 72 points.
     public var canIncreaseFontSize: Bool {
         fontSize < RichTextFormatter.fontSizeRange.upperBound
     }
 
+    /// Whether ``fontSize`` is above the smallest size the editor allows, 8 points.
     public var canDecreaseFontSize: Bool {
         fontSize > RichTextFormatter.fontSizeRange.lowerBound
     }
 
     // MARK: Commands
+    //
+    // Commands do nothing until the context is connected to an editor. Each one is a single undo step.
 
+    /// Turns `style` on for the selection, or off when the whole selection already has it.
+    /// With only a caret, applies to the text typed next.
     public func toggle(_ style: TextStyle) {
         textView?.toggle(style)
     }
 
+    /// Changes the font size of the selection, or of the text typed next, by `delta` points,
+    /// keeping each run's own size and clamping to 8–72 points.
     public func adjustFontSize(by delta: CGFloat) {
         textView?.adjustFontSize(by: delta)
     }
 
+    /// Colors the selection, or the text typed next.
     public func setTextColor(_ color: UIColor) {
         textView?.setTextColor(color)
     }
 
+    /// Aligns every paragraph the selection touches.
     public func setAlignment(_ alignment: NSTextAlignment) {
         textView?.setAlignment(alignment)
     }
 
+    /// Applies `blockStyle` to every paragraph the selection touches.
     public func setBlockStyle(_ blockStyle: BlockStyle) {
         textView?.setBlockStyle(blockStyle)
     }
@@ -64,8 +85,10 @@ public final class RichTextContext: ObservableObject {
         textView?.toggleBlockStyle(blockStyle)
     }
 
-    /// Links the selection, or the link under the caret. Pass `nil` to remove the link.
-    /// Only http, https, mailto, tel and relative links are accepted.
+    /// Links the selection, or relinks the whole link under the caret. Pass `nil` to remove the link.
+    /// With a caret outside any link, inserts the URL itself as linked text.
+    ///
+    /// Only http, https, mailto, tel and relative links are accepted; others are ignored.
     public func setLink(_ url: URL?) {
         textView?.setLink(url)
     }
@@ -75,20 +98,25 @@ public final class RichTextContext: ObservableObject {
         textView?.presentLinkEditor()
     }
 
+    /// Replaces the selection with `image`, scaled down to fit the editor's width.
     public func insertImage(_ image: UIImage) {
         textView?.insertImage(image)
     }
 
+    /// Shows the system photo picker and inserts the chosen image at the selection.
+    /// The picker runs out of process, so no photo library permission is needed.
     public func presentImagePicker() {
         textView?.presentImagePicker()
     }
 
+    /// Undoes the last edit, whether typing or formatting.
     public func undo() {
-        textView?.undoManager?.undo()
+        textView?.editorUndoManager?.undo()
     }
 
+    /// Redoes the last undone edit.
     public func redo() {
-        textView?.undoManager?.redo()
+        textView?.editorUndoManager?.redo()
     }
 
     /// Makes the editor first responder, showing the keyboard and toolbar.
@@ -96,6 +124,7 @@ public final class RichTextContext: ObservableObject {
         textView?.becomeFirstResponder()
     }
 
+    /// Resigns first responder, hiding the keyboard and toolbar.
     public func dismissKeyboard() {
         textView?.resignFirstResponder()
     }
@@ -115,8 +144,8 @@ public final class RichTextContext: ObservableObject {
         update(\.alignment, to: state.alignment)
         update(\.blockStyle, to: state.blockStyle)
         update(\.link, to: state.link)
-        update(\.canUndo, to: textView.undoManager?.canUndo ?? false)
-        update(\.canRedo, to: textView.undoManager?.canRedo ?? false)
+        update(\.canUndo, to: textView.editorUndoManager?.canUndo ?? false)
+        update(\.canRedo, to: textView.editorUndoManager?.canRedo ?? false)
     }
 
     private func update<Value: Equatable>(_ keyPath: ReferenceWritableKeyPath<RichTextContext, Value>, to value: Value) {

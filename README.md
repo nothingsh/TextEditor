@@ -15,7 +15,7 @@ A SwiftUI rich text editor backed by `UITextView`, with a formatting toolbar abo
 - Headings, bulleted and numbered lists, quotes and code blocks, with Return and Delete behaving as in Notes
 - Links, font size, text color and per-paragraph alignment
 - Images inserted at the caret through the system photo picker (no permission prompt)
-- Markdown shortcuts while typing: `# `, `- `, `1. `, `> `, `**bold**`, `*italic*`, `~~strike~~` and backticks
+- Markdown shortcuts while typing: `# `, `- `, `1. `, `> `, `**bold**`, `*italic*`, `_italic_`, `~~strike~~` and backticks
 - Markdown, HTML and lossless archive import and export
 - Undo and redo for every edit, including formatting; ⌘B, ⌘I and ⌘U on hardware keyboards
 - A configurable toolbar whose state follows the selection, with dark mode and VoiceOver support
@@ -91,7 +91,7 @@ text = try RichTextSerializer.attributedString(archivedData: data)
 | HTML     | blocks, inline styles, links, colors, alignment, images  | font sizes                           |
 | Markdown | blocks, bold, italic, strikethrough, code, links, images | underline, colors, sizes, alignment  |
 
-Images are embedded as base64 `data:` URIs in HTML and Markdown.
+Images are embedded as base64 `data:` URIs in HTML and Markdown. On import, only `data:` URI images are loaded; remote images are never fetched, so Markdown keeps them as a link and HTML drops them.
 
 ### Driving the editor from your own controls
 
@@ -120,6 +120,8 @@ The package includes a DocC catalog with getting-started, toolbar and serializat
 
 ## Installation
 
+Requires iOS 16 and Xcode 16 or later.
+
 Add the package in Xcode via **File › Add Package Dependencies…**, or in `Package.swift`:
 
 ```swift
@@ -130,7 +132,8 @@ Add the package in Xcode via **File › Add Package Dependencies…**, or in `Pa
 
 - The minimum platform is now iOS 16.
 - `RichTextEditor(richText:onCommit:)` is replaced by `RichTextEditor(text:)` with a `Binding<NSAttributedString>`, which updates on every edit. Use `.onChange(of:)` to save.
-- `accessory:` is renamed `toolbar:`, and `EditorSection` gains `.history` (undo and redo).
+- `accessory:` is renamed `toolbar:`. `EditorSection` gains `.blockStyle`, `.lists`, `.link` and `.history`, and the default toolbar (`EditorSection.allCases`) shows them all; pass the sections you want to keep the 1.x toolbar.
+- Building now requires Xcode 16 or later.
 - The public `Color(hex:)` and `UIColor(hex:)` extensions have been removed.
 
 ## Roadmap

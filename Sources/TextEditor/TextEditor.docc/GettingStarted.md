@@ -29,11 +29,11 @@ People format text with the toolbar above the keyboard, the B/I/U edit menu, har
 |----------------------------------|-----------------|
 | `#`, `##`, `###` and a space     | Heading         |
 | `-`, `*` or `+` and a space      | Bulleted list   |
-| `1.` and a space                 | Numbered list   |
+| `1.` or `1)` and a space         | Numbered list   |
 | `>` and a space                  | Quote           |
 | Three backticks and a space      | Code block      |
 
-Wrapping text in `**`, `*`, `_`, `~~` or backticks applies bold, italic, strikethrough or inline code as soon as the closing marker is typed. Undo brings back the literal Markdown.
+Wrapping text in `**` or `__` makes it bold, `*` or `_` italic, `~~` strikethrough, and backticks inline code, as soon as the closing marker is typed. Undo brings back the literal Markdown.
 
 Turn this off with the `markdownShortcuts(_:)` view modifier:
 
@@ -42,7 +42,7 @@ RichTextEditor(text: $text)
     .markdownShortcuts(false)
 ```
 
-In lists and quotes, Return continues the block, Return on an empty item ends it, and Delete at the start of an item removes its style before joining paragraphs.
+In lists and quotes, Return continues the block, Return on an empty item ends it, and Delete at the start of an item removes its style before joining paragraphs. In code blocks, Return always starts another code line; Delete at the start of a line turns it back into body text. Return at the end of a heading starts a body paragraph.
 
 ## Drive the Editor from Your Own Controls
 

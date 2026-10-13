@@ -112,6 +112,19 @@ final class SerializationTests: XCTestCase {
         XCTAssertEqual(RichTextSerializer.html(from: text), html)
     }
 
+    func testHTMLRoundTripKeepsExplicitLeftAlignment() {
+        let html = #"<p dir="rtl" style="text-align: left">שלום</p>"#
+        let text = RichTextSerializer.attributedString(html: html)
+        XCTAssertEqual((text.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.alignment, .left)
+        XCTAssertEqual(RichTextSerializer.html(from: text), html)
+    }
+
+    func testHTMLExportOmitsTheBodyTextColor() {
+        let text = RichTextSerializer.attributedString(html: "<p>plain</p>", textColor: .black)
+        XCTAssertFalse(RichTextSerializer.html(from: text, textColor: .black).contains("color"))
+        XCTAssertTrue(RichTextSerializer.html(from: text).contains("color: #000000"))
+    }
+
     func testHTMLImportIsForgiving() {
         let html = """
         <html><head><style>p { color: red }</style></head><body>

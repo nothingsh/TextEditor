@@ -6,7 +6,7 @@
 import SwiftUI
 
 /// The formatting toolbar: a floating capsule of controls, with the color palette in its own capsule above it.
-/// On iOS 26 both use Liquid Glass; earlier versions use a translucent material.
+/// On iOS 26, when built with Xcode 26 or later, both use Liquid Glass; otherwise they use a translucent material.
 ///
 /// All state comes from `RichTextContext`, so the toolbar always matches the selection.
 /// `RichTextEditor` shows it above the keyboard. To place it elsewhere, such as the bottom of an iPad screen,
@@ -21,6 +21,9 @@ public struct RichTextToolbar: View {
     private let rowPadding: CGFloat = 6
     private let capsuleSpacing: CGFloat = 8
 
+    /// - Parameters:
+    ///   - context: The context of the editor to format; pass the same one to ``RichTextEditor``.
+    ///   - configuration: The controls to show.
     public init(context: RichTextContext, configuration: RichTextToolbarConfiguration = .default) {
         self.context = context
         self.configuration = configuration
