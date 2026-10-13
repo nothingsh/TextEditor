@@ -147,6 +147,25 @@ final class SerializationTests: XCTestCase {
         XCTAssertFalse(RichTextSerializer.markdown(from: crafted).contains("javascript"))
     }
 
+    func testDataURIMimeTypeCannotInjectAttributes() throws {
+        let png = try XCTUnwrap(UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { _ in }.pngData())
+        let hostile = "data:image/png\" onerror=\"alert(1);base64,\(png.base64EncodedString())"
+        let html = "<p><img src='\(hostile)'></p>"
+
+        let exported = RichTextSerializer.html(from: RichTextSerializer.attributedString(html: html))
+
+        XCTAssertFalse(exported.contains("onerror"))
+        XCTAssertTrue(exported.contains("<img src=\"data:image/png;base64,"))
+    }
+
+    func testDataURIFormatIsDetectedFromBytes() throws {
+        let png = try XCTUnwrap(UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { _ in }.pngData())
+        // Declared as JPEG, actually PNG.
+        let payload = ImageAttachments.payload(fromDataURI: "data:image/jpeg;base64,\(png.base64EncodedString())")
+        XCTAssertEqual(payload?.type, .png)
+        XCTAssertNil(ImageAttachments.payload(fromDataURI: "data:image/png;base64,\(Data("not an image".utf8).base64EncodedString())"))
+    }
+
     func testSafeAndRelativeLinksAreKept() {
         for link in ["https://a.com", "mailto:a@b.c", "tel:123", "/docs/page"] {
             XCTAssertTrue(RichTextDocument.isSafeLink(URL(string: link)!), link)

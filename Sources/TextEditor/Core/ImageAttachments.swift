@@ -9,11 +9,18 @@ import UniformTypeIdentifiers
 
 /// Encoded image bytes and their format.
 struct ImagePayload: Equatable {
+    /// Formats accepted on import and written on export.
+    static let supportedTypes: [UTType: String] = [
+        .png: "image/png", .jpeg: "image/jpeg", .gif: "image/gif", .heic: "image/heic", .webP: "image/webp",
+    ]
+
     var data: Data
     var type: UTType
 
+    /// Always one of `supportedTypes`, never a string taken from imported content,
+    /// since it's written into exported HTML and Markdown.
     var mimeType: String {
-        type.preferredMIMEType ?? "image/png"
+        Self.supportedTypes[type] ?? "image/png"
     }
 }
 
@@ -106,13 +113,24 @@ enum ImageAttachments {
         "data:\(payload.mimeType);base64," + payload.data.base64EncodedString()
     }
 
+    /// The declared MIME type is ignored: the format is detected from the bytes and must be a supported image.
     static func payload(fromDataURI string: String) -> ImagePayload? {
         guard string.hasPrefix("data:image/"), let comma = string.firstIndex(of: ","),
               string[..<comma].hasSuffix(";base64"),
-              let data = Data(base64Encoded: String(string[string.index(after: comma)...]), options: .ignoreUnknownCharacters) else {
+              let data = Data(base64Encoded: String(string[string.index(after: comma)...]), options: .ignoreUnknownCharacters),
+              let type = detectedType(of: data) else {
             return nil
         }
-        let mimeType = String(string.dropFirst("data:".count).prefix(while: { $0 != ";" }))
-        return ImagePayload(data: data, type: UTType(mimeType: mimeType) ?? .png)
+        return ImagePayload(data: data, type: type)
+    }
+
+    private static func detectedType(of data: Data) -> UTType? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let identifier = CGImageSourceGetType(source) as String?,
+              let type = UTType(identifier),
+              ImagePayload.supportedTypes[type] != nil else {
+            return nil
+        }
+        return type
     }
 }
