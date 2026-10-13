@@ -15,17 +15,22 @@ public struct RichTextToolbarConfiguration {
     public var customActions: [RichTextToolbarAction]
     /// Whether a hide-keyboard button is pinned to the trailing edge.
     public var showsDismissKeyboardButton: Bool
+    /// Whether scrolling rows fade out at an edge that has more controls beyond it, hinting that they scroll.
+    /// Rows that fit never fade.
+    public var showsScrollEdgeFade: Bool
 
     public init(
         sections: [EditorSection] = EditorSection.allCases,
         colors: [RichTextColor] = RichTextColor.defaultPalette,
         customActions: [RichTextToolbarAction] = [],
-        showsDismissKeyboardButton: Bool = true
+        showsDismissKeyboardButton: Bool = true,
+        showsScrollEdgeFade: Bool = true
     ) {
         self.sections = sections
         self.colors = colors
         self.customActions = customActions
         self.showsDismissKeyboardButton = showsDismissKeyboardButton
+        self.showsScrollEdgeFade = showsScrollEdgeFade
     }
 
     public static let `default` = RichTextToolbarConfiguration()
@@ -36,6 +41,7 @@ public struct RichTextToolbarConfiguration {
         sections == other.sections
             && colors == other.colors
             && showsDismissKeyboardButton == other.showsDismissKeyboardButton
+            && showsScrollEdgeFade == other.showsScrollEdgeFade
             && customActions.map(\.title) == other.customActions.map(\.title)
             && customActions.map(\.systemImage) == other.customActions.map(\.systemImage)
     }

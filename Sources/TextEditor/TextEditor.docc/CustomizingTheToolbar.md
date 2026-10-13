@@ -38,6 +38,14 @@ RichTextEditor(text: $text, toolbar: configuration)
 
 Color names are used as VoiceOver labels.
 
+## Scrolling Rows
+
+When the controls don't fit, the row scrolls horizontally and fades out at whichever edge has more controls beyond it. Rows that fit never fade. To turn the fade off:
+
+```swift
+RichTextEditor(text: $text, toolbar: RichTextToolbarConfiguration(showsScrollEdgeFade: false))
+```
+
 ## Place the Toolbar Yourself
 
 On iPad, or anywhere the keyboard isn't the right home, pass `nil` for the keyboard toolbar and show ``RichTextToolbar`` with the same context:
