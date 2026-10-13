@@ -112,7 +112,7 @@ struct HTMLReader {
 
     private struct InlineStyle {
         var tag: String
-        var style: TextStyle?
+        var styles: Set<TextStyle> = []
         var link: URL?
         var color: UIColor?
     }
@@ -204,22 +204,11 @@ struct HTMLReader {
             if let source = attributes["src"], let image = ImageAttachments.payload(fromDataURI: source) {
                 segments.append(Segment(text: "", image: image))
             }
-        case "strong", "b":
-            inlineStack.append(InlineStyle(tag: name, style: .bold))
-        case "em", "i":
-            inlineStack.append(InlineStyle(tag: name, style: .italic))
-        case "u", "ins":
-            inlineStack.append(InlineStyle(tag: name, style: .underline))
-        case "s", "strike", "del":
-            inlineStack.append(InlineStyle(tag: name, style: .strikethrough))
-        case "code":
-            inlineStack.append(InlineStyle(tag: name, style: isInPre ? nil : .code))
+        case "strong", "b", "em", "i", "u", "ins", "s", "strike", "del", "code", "span", "font":
+            inlineStack.append(inlineStyle(for: name, attributes: attributes))
         case "a":
             let link = attributes["href"].flatMap(URL.init(string:)).flatMap { RichTextDocument.isSafeLink($0) ? $0 : nil }
             inlineStack.append(InlineStyle(tag: name, link: link))
-        case "span", "font":
-            let color = Self.color(fromStyle: attributes["style"]) ?? attributes["color"].flatMap(Self.color(fromValue:))
-            inlineStack.append(InlineStyle(tag: name, color: color))
         default:
             break
         }
@@ -272,7 +261,7 @@ struct HTMLReader {
         }
         let segment = Segment(
             text: text,
-            styles: Set(inlineStack.compactMap(\.style)),
+            styles: inlineStack.reduce(into: []) { $0.formUnion($1.styles) },
             link: inlineStack.last(where: { $0.link != nil })?.link,
             color: inlineStack.last(where: { $0.color != nil })?.color
         )
@@ -319,6 +308,46 @@ struct HTMLReader {
             block = .paragraph
         }
         paragraphs.append(Paragraph(block: block, alignment: alignment, segments: segments))
+    }
+
+    /// The tag's own style, adjusted by its inline CSS. Pasted HTML often styles with CSS alone, and
+    /// Google Docs wraps whole documents in `<b style="font-weight:normal">`, which mustn't turn them bold.
+    private func inlineStyle(for name: String, attributes: [String: String]) -> InlineStyle {
+        var styles: Set<TextStyle> = []
+        switch name {
+        case "strong", "b": styles.insert(.bold)
+        case "em", "i": styles.insert(.italic)
+        case "u", "ins": styles.insert(.underline)
+        case "s", "strike", "del": styles.insert(.strikethrough)
+        case "code" where !isInPre: styles.insert(.code)
+        default: break
+        }
+        let css = attributes["style"]
+        if let weight = Self.styleValue("font-weight", in: css)?.lowercased() {
+            if weight == "bold" || weight == "bolder" || (Int(weight) ?? 0) >= 600 {
+                styles.insert(.bold)
+            } else {
+                styles.remove(.bold)
+            }
+        }
+        if let fontStyle = Self.styleValue("font-style", in: css)?.lowercased() {
+            if fontStyle == "italic" || fontStyle == "oblique" {
+                styles.insert(.italic)
+            } else {
+                styles.remove(.italic)
+            }
+        }
+        let decoration = [Self.styleValue("text-decoration", in: css), Self.styleValue("text-decoration-line", in: css)]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        if decoration.contains("underline") {
+            styles.insert(.underline)
+        }
+        if decoration.contains("line-through") {
+            styles.insert(.strikethrough)
+        }
+        let color = Self.color(fromStyle: css) ?? attributes["color"].flatMap(Self.color(fromValue:))
+        return InlineStyle(tag: name, styles: styles, color: color)
     }
 
     // MARK: Parsing Helpers
