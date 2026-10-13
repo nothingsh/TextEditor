@@ -37,7 +37,7 @@ extension RichTextView: PHPickerViewControllerDelegate {
         }
     }
 
-    private var nearestViewController: UIViewController? {
+    var nearestViewController: UIViewController? {
         var responder: UIResponder? = self
         while let current = responder {
             if let viewController = current as? UIViewController {

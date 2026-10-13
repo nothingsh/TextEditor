@@ -28,6 +28,10 @@ final class KeyboardToolbarHost: UIInputView {
         ])
     }
 
+    func update<Content: View>(content: Content) {
+        hostingController.rootView = AnyView(content)
+    }
+
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }

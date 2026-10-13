@@ -117,7 +117,7 @@ final class RichTextViewTests: XCTestCase {
     func testEditsArePushedToBinding() {
         var bound = NSAttributedString(string: "Hello")
         let binding = Binding(get: { bound }, set: { bound = $0 })
-        let representable = RichTextViewRepresentable(text: binding, editorContext: context, placeholder: "", sections: [])
+        let representable = RichTextViewRepresentable(text: binding, editorContext: context, placeholder: "", toolbar: nil)
         let coordinator = representable.makeCoordinator()
         textView.delegate = coordinator
         textView.setContent(bound)

@@ -7,11 +7,13 @@ A SwiftUI rich text editor backed by `UITextView`, with a formatting toolbar abo
 
 ## Features
 
-- Bold, italic, underline and strikethrough, which combine freely and keep the font family
-- Font size, text color and per-paragraph alignment
+- Bold, italic, underline, strikethrough and inline code, which combine freely and keep the font family
+- Headings, bulleted and numbered lists, quotes and code blocks, with Return and Delete behaving as in Notes
+- Links, font size, text color and per-paragraph alignment
 - Images inserted at the caret through the system photo picker (no permission prompt)
-- Undo and redo for every edit, including formatting
-- Toolbar state that follows the selection, with dark mode and VoiceOver support
+- Markdown, HTML and lossless archive import and export
+- Undo and redo for every edit, including formatting; ⌘B, ⌘I and ⌘U on hardware keyboards
+- A configurable toolbar whose state follows the selection, with dark mode and VoiceOver support
 
 ## Usage
 
@@ -33,13 +35,49 @@ struct ContentView: View {
 
 The editor grows with its content, so place it in a `ScrollView` for long documents.
 
-### Choosing toolbar sections
+### Configuring the toolbar
+
+Pick sections in display order, or pass an empty array to hide the toolbar:
 
 ```swift
-RichTextEditor(text: $text, toolbar: [.textStyle, .colorPalette, .history])
+RichTextEditor(text: $text, toolbar: [.textStyle, .blockStyle, .lists, .link, .history])
 ```
 
-Pass an empty array to hide the toolbar.
+For custom colors or your own buttons, pass a configuration:
+
+```swift
+RichTextEditor(text: $text, toolbar: RichTextToolbarConfiguration(
+    sections: [.textStyle, .lists, .colorPalette],
+    colors: [RichTextColor("Ink", .label), RichTextColor("Brand", .systemIndigo)],
+    customActions: [
+        RichTextToolbarAction(title: "Quote", systemImage: "text.quote",
+                              isActive: { $0.blockStyle == .quote },
+                              action: { $0.toggleBlockStyle(.quote) }),
+    ]
+))
+```
+
+To place the toolbar somewhere other than above the keyboard, pass `toolbar: nil` and add `RichTextToolbar(context:configuration:)` yourself.
+
+### Saving and loading
+
+```swift
+let markdown = RichTextSerializer.markdown(from: text)
+let html = RichTextSerializer.html(from: text)
+let data = try RichTextSerializer.archivedData(from: text)
+
+text = RichTextSerializer.attributedString(markdown: markdown)
+text = RichTextSerializer.attributedString(html: html)
+text = try RichTextSerializer.attributedString(archivedData: data)
+```
+
+| Format   | Keeps                                                    | Drops                                |
+|----------|----------------------------------------------------------|--------------------------------------|
+| Archive  | everything                                               | nothing — use it for drafts          |
+| HTML     | blocks, inline styles, links, colors, alignment, images  | font sizes                           |
+| Markdown | blocks, bold, italic, strikethrough, code, links, images | underline, colors, sizes, alignment  |
+
+Images are embedded as base64 `data:` URIs in HTML and Markdown.
 
 ### Driving the editor from your own controls
 
@@ -53,6 +91,7 @@ var body: some View {
         RichTextEditor(text: $text, context: context, toolbar: [])
         Button("Bold") { context.toggle(.bold) }
             .foregroundColor(context.isActive(.bold) ? .accentColor : .primary)
+        Button("Heading") { context.toggleBlockStyle(.heading1) }
     }
 }
 ```
@@ -74,8 +113,11 @@ Add the package in Xcode via **File › Add Package Dependencies…**, or in `Pa
 
 ## Roadmap
 
-- [ ] Headings, lists, quotes and code
-- [ ] Links
-- [ ] HTML and Markdown import and export
+- [x] Headings, lists, quotes and code
+- [x] Links
+- [x] HTML and Markdown import and export
+- [x] Configurable toolbar items and colors
+- [ ] Checklists and nested lists
+- [ ] Markdown shortcuts while typing (`# `, `- `, `1. `)
 - [ ] Font selection
-- [ ] Configurable toolbar items and colors
+- [ ] macOS support

@@ -16,6 +16,8 @@ public final class RichTextContext: ObservableObject {
     @Published public private(set) var fontSize: CGFloat = UIFont.preferredFont(forTextStyle: .body).pointSize
     @Published public private(set) var textColor: UIColor = .label
     @Published public private(set) var alignment: NSTextAlignment = .natural
+    @Published public private(set) var blockStyle: BlockStyle = .paragraph
+    @Published public private(set) var link: URL?
     @Published public private(set) var canUndo = false
     @Published public private(set) var canRedo = false
 
@@ -53,6 +55,26 @@ public final class RichTextContext: ObservableObject {
         textView?.setAlignment(alignment)
     }
 
+    public func setBlockStyle(_ blockStyle: BlockStyle) {
+        textView?.setBlockStyle(blockStyle)
+    }
+
+    /// Applies `blockStyle`, or reverts to a plain paragraph if it's already applied.
+    public func toggleBlockStyle(_ blockStyle: BlockStyle) {
+        textView?.toggleBlockStyle(blockStyle)
+    }
+
+    /// Links the selection, or the link under the caret. Pass `nil` to remove the link.
+    /// Only http, https, mailto, tel and relative links are accepted.
+    public func setLink(_ url: URL?) {
+        textView?.setLink(url)
+    }
+
+    /// Shows an alert for adding, editing or removing the link at the selection.
+    public func presentLinkEditor() {
+        textView?.presentLinkEditor()
+    }
+
     public func insertImage(_ image: UIImage) {
         textView?.insertImage(image)
     }
@@ -86,6 +108,8 @@ public final class RichTextContext: ObservableObject {
         update(\.fontSize, to: state.fontSize)
         update(\.textColor, to: state.textColor)
         update(\.alignment, to: state.alignment)
+        update(\.blockStyle, to: state.blockStyle)
+        update(\.link, to: state.link)
         update(\.canUndo, to: textView.undoManager?.canUndo ?? false)
         update(\.canRedo, to: textView.undoManager?.canRedo ?? false)
     }
