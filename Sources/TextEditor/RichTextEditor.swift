@@ -93,7 +93,7 @@ struct RichTextViewRepresentable: UIViewRepresentable {
         textView.setContent(text)
         context.coordinator.lastSyncedText = text
         connect(textView)
-        updateToolbar(of: textView)
+        updateToolbar(of: textView, coordinator: context.coordinator)
         return textView
     }
 
@@ -106,7 +106,7 @@ struct RichTextViewRepresentable: UIViewRepresentable {
         if editorContext.textView !== textView {
             connect(textView)
         }
-        updateToolbar(of: textView)
+        updateToolbar(of: textView, coordinator: coordinator)
 
         // Skip our own echo: after an edit the binding holds the exact snapshot we pushed.
         guard text !== coordinator.lastSyncedText else {
@@ -140,9 +140,16 @@ struct RichTextViewRepresentable: UIViewRepresentable {
     }
 
     /// Reuses the existing host so toolbar state, like an open color palette, survives SwiftUI updates.
-    private func updateToolbar(of textView: RichTextView) {
+    ///
+    /// The parent re-renders on every keystroke because the binding changes, so this skips all work
+    /// unless the configuration did change; the toolbar itself follows formatting through the context.
+    private func updateToolbar(of textView: RichTextView, coordinator: Coordinator) {
         let host = textView.inputAccessoryView as? KeyboardToolbarHost
         if let toolbar {
+            if host != nil, let current = coordinator.toolbar, current.isEquivalent(to: toolbar) {
+                return
+            }
+            coordinator.toolbar = toolbar
             let content = RichTextToolbar(context: editorContext, configuration: toolbar)
             if let host {
                 host.update(content: content)
@@ -150,6 +157,7 @@ struct RichTextViewRepresentable: UIViewRepresentable {
             }
             textView.inputAccessoryView = KeyboardToolbarHost(content: content)
         } else {
+            coordinator.toolbar = nil
             guard host != nil else {
                 return
             }
@@ -172,6 +180,8 @@ struct RichTextViewRepresentable: UIViewRepresentable {
         var parent: RichTextViewRepresentable
         /// The last value pushed to or received from the binding.
         var lastSyncedText: NSAttributedString?
+        /// The configuration the keyboard toolbar was last built with.
+        var toolbar: RichTextToolbarConfiguration?
         var isApplyingExternalChange = false
 
         init(_ parent: RichTextViewRepresentable) {

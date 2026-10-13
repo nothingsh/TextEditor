@@ -75,7 +75,7 @@ enum MarkdownWriter {
     static func inlineMarkdown(_ segments: [Segment], isHeading: Bool) -> String {
         mergedIgnoringColor(segments).map { segment in
             if let image = segment.image {
-                return RichTextDocument.dataURI(for: image).map { "![](\($0))" } ?? ""
+                return "![](\(ImageAttachments.dataURI(for: image)))"
             }
             var styles = segment.styles
             if isHeading {
@@ -226,7 +226,7 @@ enum MarkdownReader {
 
     private static func segment(text: String, run: AttributedString.Runs.Run) -> Segment {
         if let imageURL = run.imageURL {
-            if let image = RichTextDocument.image(fromDataURI: imageURL.absoluteString) {
+            if let image = ImageAttachments.payload(fromDataURI: imageURL.absoluteString) {
                 return Segment(text: "", image: image)
             }
             // Remote images can't be fetched here; keep the alt text, linked to the image.

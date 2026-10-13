@@ -17,7 +17,7 @@ extension RichTextView {
         let range = RichTextFormatter.paragraphRange(in: textStorage, for: selectedRange)
         guard range.length > 0 else {
             // An empty trailing paragraph only exists in the typing attributes.
-            updateBlockDecorations()
+            setNeedsBlockDecorations()
             context?.refresh()
             return
         }
@@ -65,7 +65,7 @@ extension RichTextView {
             typingAttributes = RichTextFormatter.setting(next, in: endedParagraphAttributes, defaultFont: defaultFont)
         }
         restoreTypingBlockStyle()
-        updateBlockDecorations()
+        setNeedsBlockDecorations()
         context?.refresh()
     }
 
@@ -99,7 +99,7 @@ extension RichTextView {
             pendingBlockStyle = nil
         }
         restoreTypingBlockStyle()
-        updateBlockDecorations()
+        setNeedsBlockDecorations()
         setNeedsCaretScroll()
     }
 
@@ -217,8 +217,10 @@ extension RichTextView {
         }
 
         decorationView.decorations = decorations
-        // Decorations can land below the current bounds until SwiftUI grows the view; don't clip them.
+        // Decorations can land below the current bounds until SwiftUI grows the view. The view has no
+        // backing store of its own, so covering the whole document costs nothing.
         let height = max(bounds.height, contentSize.height, decorations.map(\.frame.maxY).max() ?? 0)
         decorationView.frame = CGRect(x: 0, y: 0, width: bounds.width, height: height)
+        updateVisibleDecorationRect()
     }
 }

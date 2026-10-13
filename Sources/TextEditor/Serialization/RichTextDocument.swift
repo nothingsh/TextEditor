@@ -20,7 +20,7 @@ enum RichTextDocument {
         var styles: Set<TextStyle> = []
         var link: URL?
         var color: UIColor?
-        var image: UIImage?
+        var image: ImagePayload?
 
         func hasSameStyle(as other: Segment) -> Bool {
             styles == other.styles && link == other.link && color == other.color && image == nil && other.image == nil
@@ -57,8 +57,8 @@ enum RichTextDocument {
         var segments: [Segment] = []
         text.enumerateAttributes(in: range) { attributes, runRange, _ in
             if let attachment = attributes[.attachment] as? NSTextAttachment {
-                if let image = attachment.image ?? attachment.contents.flatMap(UIImage.init(data:)) {
-                    segments.append(Segment(text: "", image: image))
+                if let payload = ImageAttachments.payload(of: attachment) {
+                    segments.append(Segment(text: "", image: payload))
                 }
                 return
             }
@@ -106,8 +106,11 @@ enum RichTextDocument {
                 if let color = segment.color {
                     attributes[.foregroundColor] = color
                 }
-                if let image = segment.image {
-                    let attachment = NSMutableAttributedString(attributedString: NSAttributedString(attachment: NSTextAttachment(image: image)))
+                if let payload = segment.image {
+                    guard let imageAttachment = ImageAttachments.attachment(for: payload) else {
+                        continue
+                    }
+                    let attachment = NSMutableAttributedString(attributedString: NSAttributedString(attachment: imageAttachment))
                     attachment.addAttributes(attributes, range: NSRange(location: 0, length: attachment.length))
                     result.append(attachment)
                 } else {
@@ -142,19 +145,6 @@ enum RichTextDocument {
             return true
         }
         return safeLinkSchemes.contains(scheme)
-    }
-
-    static func dataURI(for image: UIImage) -> String? {
-        image.pngData().map { "data:image/png;base64," + $0.base64EncodedString() }
-    }
-
-    static func image(fromDataURI string: String) -> UIImage? {
-        guard string.hasPrefix("data:image/"), let comma = string.firstIndex(of: ","),
-              string[..<comma].hasSuffix(";base64"),
-              let data = Data(base64Encoded: String(string[string.index(after: comma)...]), options: .ignoreUnknownCharacters) else {
-            return nil
-        }
-        return UIImage(data: data)
     }
 
     static func hexString(for color: UIColor) -> String {

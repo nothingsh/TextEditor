@@ -25,11 +25,13 @@ final class RichTextView: UITextView {
     /// Whether typed Markdown such as `# ` or `**bold**` turns into formatting.
     var isMarkdownShortcutsEnabled = true
 
-    /// Owned by the editor so its history isn't shared with other text fields in the window.
-    private let editorUndoManager = UndoManager()
+    /// Undo steps kept in memory; each formatting step holds a copy of the text it changed.
+    static let undoLevels = 100
 
-    override var undoManager: UndoManager? {
-        editorUndoManager
+    /// UITextView's own undo manager, which already holds typing history and isn't shared with the window.
+    /// Formatting registers here too, so typing and formatting undo in the order they happened.
+    var editorUndoManager: UndoManager? {
+        super.undoManager
     }
 
     override var attributedText: NSAttributedString! {
@@ -109,6 +111,7 @@ final class RichTextView: UITextView {
         center.addObserver(self, selector: #selector(textDidChange), name: UITextView.textDidChangeNotification, object: self)
         // Typing undo groups close at the end of the run loop, after the delegate has already fired,
         // so undo availability is refreshed from the undo manager's own notifications.
+        editorUndoManager?.levelsOfUndo = Self.undoLevels
         for name in [Notification.Name.NSUndoManagerDidCloseUndoGroup, .NSUndoManagerDidUndoChange, .NSUndoManagerDidRedoChange] {
             center.addObserver(self, selector: #selector(undoStateDidChange), name: name, object: editorUndoManager)
         }
@@ -116,20 +119,57 @@ final class RichTextView: UITextView {
 
     @objc private func textDidChange() {
         updatePlaceholderVisibility()
-        updateBlockDecorations()
+        setNeedsBlockDecorations()
         setNeedsCaretScroll()
     }
 
     private var lastLayoutSize: CGSize = .zero
+    private var needsBlockDecorations = false
 
-    /// TextKit 2 only fully lays out text inside the view, so decorations are recomputed once SwiftUI resizes it.
+    /// Several events per keystroke ask for new decorations; they're computed once, at the next layout pass.
+    func setNeedsBlockDecorations() {
+        needsBlockDecorations = true
+        setNeedsLayout()
+    }
+
+    /// TextKit 2 only fully lays out text inside the view, so decorations are also recomputed once SwiftUI resizes it.
     override func layoutSubviews() {
         super.layoutSubviews()
-        if bounds.size != lastLayoutSize {
+        let sizeChanged = bounds.size != lastLayoutSize
+        if bounds.width != lastLayoutSize.width {
+            fitAttachmentsToWidth()
+        }
+        if sizeChanged || needsBlockDecorations {
             lastLayoutSize = bounds.size
+            needsBlockDecorations = false
             updateBlockDecorations()
+        }
+        if sizeChanged {
             setNeedsCaretScroll()
         }
+    }
+
+    // MARK: Visible Region
+
+    private var scrollObservation: NSKeyValueObservation?
+
+    /// Decorations only get layers near what's on screen, so follow the enclosing scroll view.
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        scrollObservation = enclosingScrollView?.observe(\.contentOffset) { [weak self] _, _ in
+            DispatchQueue.main.async {
+                self?.updateVisibleDecorationRect()
+            }
+        }
+        updateVisibleDecorationRect()
+    }
+
+    func updateVisibleDecorationRect() {
+        guard window != nil, let scrollView = enclosingScrollView else {
+            decorationView.visibleRect = nil
+            return
+        }
+        decorationView.visibleRect = scrollView.convert(scrollView.bounds, to: decorationView)
     }
 
     // MARK: Keeping the Caret Visible
@@ -164,7 +204,7 @@ final class RichTextView: UITextView {
     }
 
     /// The nearest scrolling ancestor, such as the `UIScrollView` behind a SwiftUI `ScrollView`.
-    private var enclosingScrollView: UIScrollView? {
+    var enclosingScrollView: UIScrollView? {
         var ancestor = superview
         while let view = ancestor {
             if let scrollView = view as? UIScrollView, scrollView.isScrollEnabled {
@@ -209,8 +249,9 @@ final class RichTextView: UITextView {
         if text.length == 0 {
             typingAttributes = defaultAttributes
         }
-        editorUndoManager.removeAllActions()
-        updateBlockDecorations()
+        editorUndoManager?.removeAllActions()
+        fitAttachmentsToWidth()
+        setNeedsBlockDecorations()
     }
 
     // MARK: Formatting
@@ -268,14 +309,37 @@ final class RichTextView: UITextView {
     // MARK: Images
 
     func insertImage(_ image: UIImage) {
-        let attachment = NSTextAttachment(image: image.scaledToFit(width: availableImageWidth))
+        // Encoded once here, so saving and exporting reuse the bytes.
+        let attachment = ImageAttachments.attachment(for: image.scaledToFit(width: availableImageWidth))
         let attachmentString = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
         // Carry the typing attributes so the line keeps the surrounding font metrics and paragraph style.
         attachmentString.addAttributes(typingAttributes, range: NSRange(location: 0, length: attachmentString.length))
 
         let range = selectedRange
         let caret = NSRange(location: range.location + attachmentString.length, length: 0)
-        replace(range, with: attachmentString, selecting: caret, actionName: "Insert Image")
+        replaceCharacters(in: range, with: attachmentString, selecting: caret, actionName: "Insert Image")
+    }
+
+    /// Imported images can be wider than the editor; show those scaled to fit, others at their natural size.
+    func fitAttachmentsToWidth() {
+        guard bounds.width > 0 else {
+            return
+        }
+        let width = availableImageWidth
+        var changed = false
+        textStorage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: textStorage.length)) { value, _, _ in
+            guard let attachment = value as? NSTextAttachment, let size = attachment.image?.size, size.width > 0 else {
+                return
+            }
+            let bounds = size.width > width ? CGRect(x: 0, y: 0, width: width, height: (size.height * width / size.width).rounded()) : .zero
+            if attachment.bounds != bounds {
+                attachment.bounds = bounds
+                changed = true
+            }
+        }
+        if changed, let layoutManager = textLayoutManager {
+            layoutManager.invalidateLayout(for: layoutManager.documentRange)
+        }
     }
 
     private var availableImageWidth: CGFloat {
@@ -284,37 +348,65 @@ final class RichTextView: UITextView {
     }
 
     // MARK: Undoable Editing
+    //
+    // UIKit discards its typing undo history whenever characters in `textStorage` are replaced directly.
+    // So attribute-only edits use `setAttributes`, and character edits go through `UITextInput`,
+    // which records them alongside typing. Either way typing and formatting undo in the order they happened.
 
     /// Applies an attribute-only edit to `range` as a single undoable step, keeping the selection.
     func editAttributes(in range: NSRange, actionName: String, _ edit: (NSMutableAttributedString, NSRange) -> Void) {
         let edited = NSMutableAttributedString(attributedString: textStorage.attributedSubstring(from: range))
         edit(edited, NSRange(location: 0, length: edited.length))
-        replace(range, with: edited, selecting: selectedRange, actionName: actionName)
+        applyAttributes(of: edited, at: range.location, actionName: actionName)
+        didEditProgrammatically()
     }
 
-    /// Replaces `range` through `textStorage` and registers the inverse replacement with the undo manager.
-    /// Redo needs no extra work: while undoing, the inverse registers its own inverse.
-    func replace(_ range: NSRange, with replacement: NSAttributedString, selecting newSelection: NSRange, actionName: String) {
-        // Commit any in-progress IME composition (e.g. Pinyin) before touching storage.
+    /// Gives the characters at `location` the attributes of `attributed`, which has the same characters.
+    /// Registers the inverse, which in turn registers this, so redo works too.
+    private func applyAttributes(of attributed: NSAttributedString, at location: Int, actionName: String) {
+        let range = NSRange(location: location, length: attributed.length)
+        let original = textStorage.attributedSubstring(from: range)
+        textStorage.beginEditing()
+        attributed.enumerateAttributes(in: NSRange(location: 0, length: attributed.length)) { attributes, runRange, _ in
+            textStorage.setAttributes(attributes, range: NSRange(location: location + runRange.location, length: runRange.length))
+        }
+        textStorage.endEditing()
+
+        editorUndoManager?.registerUndo(withTarget: self) { textView in
+            textView.applyAttributes(of: original, at: location, actionName: actionName)
+            textView.didEditProgrammatically()
+        }
+        editorUndoManager?.setActionName(actionName)
+    }
+
+    /// Replaces the characters in `range` as one undoable step: UIKit inserts the text and records it,
+    /// then the replacement's attributes, such as an image attachment, are applied on top.
+    func replaceCharacters(in range: NSRange, with replacement: NSAttributedString, selecting newSelection: NSRange, actionName: String) {
+        // Commit any in-progress IME composition (e.g. Pinyin) before editing.
         if markedTextRange != nil {
             unmarkText()
         }
-
-        let original = textStorage.attributedSubstring(from: range)
-        let originalSelection = selectedRange
-        let replacedRange = NSRange(location: range.location, length: replacement.length)
-
-        textStorage.replaceCharacters(in: range, with: replacement)
-        selectedRange = newSelection
-
-        editorUndoManager.registerUndo(withTarget: self) { textView in
-            textView.replace(replacedRange, with: original, selecting: originalSelection, actionName: actionName)
+        guard let start = position(from: beginningOfDocument, offset: range.location),
+              let end = position(from: start, offset: range.length),
+              let textRange = textRange(from: start, to: end) else {
+            return
         }
-        editorUndoManager.setActionName(actionName)
+        editorUndoManager?.beginUndoGrouping()
+        replace(textRange, withText: replacement.string)
+        if replacement.length > 0 {
+            applyAttributes(of: replacement, at: range.location, actionName: actionName)
+        }
+        editorUndoManager?.setActionName(actionName)
+        editorUndoManager?.endUndoGrouping()
 
-        // Programmatic storage edits don't reach the delegate on their own.
+        selectedRange = newSelection
+        didEditProgrammatically()
+    }
+
+    /// Programmatic storage edits don't reach the delegate on their own.
+    func didEditProgrammatically() {
         updatePlaceholderVisibility()
-        updateBlockDecorations()
+        setNeedsBlockDecorations()
         delegate?.textViewDidChange?(self)
         context?.refresh()
     }

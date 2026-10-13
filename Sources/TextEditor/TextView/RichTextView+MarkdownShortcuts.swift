@@ -79,7 +79,7 @@ extension RichTextView {
         super.insertText(" ")
         let markerRange = NSRange(location: paragraph.location, length: prefixRange.length + 1)
         performAsOneUndoStep(actionName: "Paragraph Style") {
-            replace(markerRange, with: NSAttributedString(), selecting: NSRange(location: paragraph.location, length: 0), actionName: "Paragraph Style")
+            replaceCharacters(in: markerRange, with: NSAttributedString(), selecting: NSRange(location: paragraph.location, length: 0), actionName: "Paragraph Style")
             setBlockStyle(block)
         }
         return true
@@ -107,7 +107,7 @@ extension RichTextView {
                 RichTextFormatter.setting(shortcut.style, enabled: true, in: attributes, defaultFont: defaultFont)
             }
             let caretAfter = NSRange(location: spanRange.location + content.length, length: 0)
-            replace(spanRange, with: content, selecting: caretAfter, actionName: "Format")
+            replaceCharacters(in: spanRange, with: content, selecting: caretAfter, actionName: "Format")
 
             // Text typed after the span is plain again.
             typingAttributes = RichTextFormatter.setting(shortcut.style, enabled: false, in: typingAttributes, defaultFont: defaultFont)

@@ -48,16 +48,18 @@ public enum RichTextSerializer {
     // MARK: Archive
 
     /// A lossless keyed archive, the format to use for saving drafts.
+    ///
+    /// Images are stored as their encoded bytes. Images inserted in the editor were encoded once on insertion,
+    /// so saving doesn't re-encode them.
     public static func archivedData(from text: NSAttributedString) throws -> Data {
         let archivable = NSMutableAttributedString(attributedString: text)
         let fullRange = NSRange(location: 0, length: archivable.length)
-        // Image-backed attachments archive without their image, so store the bytes as contents.
+        // Archive only the bytes: image-backed attachments would otherwise lose their image.
         archivable.enumerateAttribute(.attachment, in: fullRange) { value, range, _ in
-            guard let attachment = value as? NSTextAttachment, attachment.contents == nil,
-                  let data = attachment.image?.pngData() else {
+            guard let attachment = value as? NSTextAttachment, let payload = ImageAttachments.payload(of: attachment) else {
                 return
             }
-            archivable.addAttribute(.attachment, value: NSTextAttachment(data: data, ofType: UTType.png.identifier), range: range)
+            archivable.addAttribute(.attachment, value: NSTextAttachment(data: payload.data, ofType: payload.type.identifier), range: range)
         }
         return try NSKeyedArchiver.archivedData(withRootObject: archivable, requiringSecureCoding: true)
     }
@@ -74,10 +76,11 @@ public enum RichTextSerializer {
         let restored = NSMutableAttributedString(attributedString: text)
         restored.enumerateAttribute(.attachment, in: NSRange(location: 0, length: restored.length)) { value, range, _ in
             guard let attachment = value as? NSTextAttachment, attachment.image == nil,
-                  let image = attachment.contents.flatMap(UIImage.init(data:)) else {
+                  let payload = ImageAttachments.payload(of: attachment),
+                  let displayable = ImageAttachments.attachment(for: payload) else {
                 return
             }
-            restored.addAttribute(.attachment, value: NSTextAttachment(image: image), range: range)
+            restored.addAttribute(.attachment, value: displayable, range: range)
         }
         return restored
     }

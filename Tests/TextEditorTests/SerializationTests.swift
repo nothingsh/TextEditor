@@ -177,6 +177,50 @@ final class SerializationTests: XCTestCase {
         }
     }
 
+    private func photo(width: CGFloat, height: CGFloat) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = true
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format).image { context in
+            UIColor.systemTeal.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        }
+    }
+
+    func testOpaqueImagesAreEncodedOnceAsJPEG() {
+        let payload = ImageAttachments.encode(photo(width: 40, height: 20))
+        XCTAssertEqual(payload?.type, .jpeg)
+        let attachment = ImageAttachments.attachment(for: photo(width: 40, height: 20))
+        XCTAssertEqual(ImageAttachments.payload(of: attachment)?.type, .jpeg)
+        XCTAssertNotNil(attachment.image)
+    }
+
+    func testSavingReusesEncodedBytes() throws {
+        let attachment = ImageAttachments.attachment(for: photo(width: 40, height: 20))
+        let text = NSMutableAttributedString(string: "pic", attributes: [.font: font])
+        text.append(NSAttributedString(attachment: attachment))
+
+        let restored = try RichTextSerializer.attributedString(archivedData: RichTextSerializer.archivedData(from: text))
+        let restoredAttachment = restored.attribute(.attachment, at: 3, effectiveRange: nil) as? NSTextAttachment
+        // Byte-identical, so nothing was re-encoded on the way through.
+        XCTAssertEqual(restoredAttachment.flatMap(ImageAttachments.payload(of:)), ImageAttachments.payload(of: attachment))
+        XCTAssertNotNil(restoredAttachment?.image)
+        XCTAssertTrue(RichTextSerializer.html(from: text).contains("data:image/jpeg;base64,"))
+    }
+
+    func testImportedLargeImagesAreDownsampled() throws {
+        let jpeg = try XCTUnwrap(photo(width: 4000, height: 3000).jpegData(compressionQuality: 0.8))
+        let markdown = "![](data:image/jpeg;base64,\(jpeg.base64EncodedString()))"
+
+        let text = RichTextSerializer.attributedString(markdown: markdown)
+        let attachment = try XCTUnwrap(text.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
+        let image = try XCTUnwrap(attachment.image?.cgImage)
+
+        XCTAssertLessThanOrEqual(CGFloat(max(image.width, image.height)), ImageAttachments.maxDecodedPixelSize)
+        XCTAssertLessThanOrEqual(attachment.image?.size.width ?? .infinity, ImageAttachments.maxPointWidth)
+        XCTAssertEqual(ImageAttachments.payload(of: attachment)?.data, jpeg, "the original bytes are kept for lossless export")
+    }
+
     // MARK: Archive
 
     func testArchiveIsLossless() throws {
