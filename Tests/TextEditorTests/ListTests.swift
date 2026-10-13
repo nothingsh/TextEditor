@@ -267,4 +267,50 @@ final class ListTests: XCTestCase {
         XCTAssertEqual(text.string, "a\nb")
         XCTAssertEqual(formats(text), [ParagraphFormat(block: .bulletList), ParagraphFormat(block: .numberedList, level: 1)])
     }
+
+    // MARK: Review Regressions
+
+    func testReturnAfterTickedItemMidDocumentStartsUnticked() {
+        textView.setContent(RichTextSerializer.attributedString(markdown: "- [x] done\n- [ ] next", defaultFont: font))
+        textView.selectedRange = NSRange(location: 4, length: 0)
+        textView.insertText("\n")
+
+        XCTAssertEqual(textView.textStorage.string, "done\n\nnext")
+        XCTAssertEqual(formats(), [
+            ParagraphFormat(block: .checklist, isChecked: true),
+            ParagraphFormat(block: .checklist),
+            ParagraphFormat(block: .checklist),
+        ])
+        XCTAssertEqual(decorations.map(\.kind), [.checkbox(isChecked: true), .checkbox(isChecked: false), .checkbox(isChecked: false)])
+        // Leaving the empty item and coming back doesn't bring the tick back.
+        textView.selectedRange = NSRange(location: 0, length: 0)
+        textView.selectedRange = NSRange(location: 5, length: 0)
+        XCTAssertEqual(textView.caretParagraphFormat, ParagraphFormat(block: .checklist))
+    }
+
+    func testReturnAfterHeadingMidDocumentStartsBodyParagraph() {
+        textView.setContent(RichTextSerializer.attributedString(markdown: "# Title\n\nbody", defaultFont: font))
+        textView.selectedRange = NSRange(location: 5, length: 0)
+        textView.insertText("\n")
+        XCTAssertEqual(formats().map(\.block), [.heading1, .paragraph, .paragraph])
+    }
+
+    func testCheckboxTargetStaysOutOfNeighbouringParagraphs() throws {
+        textView.setContent(RichTextSerializer.attributedString(markdown: "above\n\n- [ ] task\n\nbelow", defaultFont: font))
+        let item = try XCTUnwrap(decorations.first { if case .checkbox = $0.kind { return true }; return false })
+        let box = textView.decorationView.checkboxFrame(for: item)
+        XCTAssertNotNil(textView.decorationView.checklistItem(at: CGPoint(x: box.midX, y: box.midY)))
+        XCTAssertNil(textView.decorationView.checklistItem(at: CGPoint(x: box.midX, y: item.frame.minY - 2)))
+        XCTAssertNil(textView.decorationView.checklistItem(at: CGPoint(x: box.midX, y: item.frame.maxY + 2)))
+    }
+
+    func testEmptyTaskItemsRoundTripThroughMarkdown() {
+        let text = RichTextSerializer.attributedString(markdown: "- [ ] \n- [x] \n- [ ] after", defaultFont: font)
+        XCTAssertEqual(text.string, "\n\nafter")
+        XCTAssertEqual(formats(text), [
+            ParagraphFormat(block: .checklist),
+            ParagraphFormat(block: .checklist, isChecked: true),
+            ParagraphFormat(block: .checklist),
+        ])
+    }
 }

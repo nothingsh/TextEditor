@@ -8,7 +8,7 @@ import SwiftUI
 /// A rich text editor with a formatting toolbar above the keyboard.
 ///
 /// By default the editor grows with its content; place it in a `ScrollView`. For long documents,
-/// use ``SwiftUI/View/scrollsContent(_:)`` so the editor scrolls itself and only lays out the text on screen.
+/// use `scrollsContent(_:)` so the editor scrolls itself and only lays out the text on screen.
 public struct RichTextEditor: View {
     @Binding private var text: NSAttributedString
     @StateObject private var internalContext = RichTextContext()

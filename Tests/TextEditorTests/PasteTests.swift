@@ -145,4 +145,15 @@ final class PasteTests: XCTestCase {
         textView.editorUndoManager?.undo()
         XCTAssertEqual(textView.textStorage.string, "ab")
     }
+
+    func testPasteKeepsNestedTickedDestination() {
+        textView.setContent(RichTextSerializer.attributedString(markdown: "- a\n  - [x] item", defaultFont: font))
+        textView.selectedRange = NSRange(location: 2, length: 0)
+
+        textView.paste(html("<p><b>bold</b></p>"))
+
+        XCTAssertEqual(textView.textStorage.string, "a\nbolditem")
+        let format = RichTextFormatter.paragraphFormat(of: textView.textStorage, at: 2)
+        XCTAssertEqual(format, ParagraphFormat(block: .checklist, level: 1, isChecked: true))
+    }
 }

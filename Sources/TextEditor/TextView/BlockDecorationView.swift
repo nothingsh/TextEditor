@@ -65,22 +65,38 @@ final class BlockDecorationView: UIView {
     }
 
     /// The paragraph location of the checklist item whose checkbox is at `point`, in this view's coordinates.
-    /// Targets are at least 44 points tall so they're easy to hit, which makes neighbouring items' targets
-    /// overlap; a point in the overlap belongs to the nearer checkbox.
+    ///
+    /// Targets are up to 44 points tall so they're easy to hit, but never reach into a paragraph that isn't
+    /// a checklist item, where a tap should place the caret. Between neighbouring items, the nearer checkbox wins.
     func checklistItem(at point: CGPoint) -> Int? {
-        decorations
-            .compactMap { decoration -> (location: Int, distance: CGFloat)? in
-                guard case .checkbox = decoration.kind else {
-                    return nil
-                }
-                let box = checkboxFrame(for: decoration)
-                guard box.insetBy(dx: -8, dy: -max(4, (44 - box.height) / 2)).contains(point) else {
-                    return nil
-                }
-                return (decoration.paragraphLocation, abs(point.y - box.midY))
+        var best: (location: Int, distance: CGFloat)?
+        for (index, decoration) in decorations.enumerated() {
+            guard case .checkbox = decoration.kind else {
+                continue
             }
-            .min { $0.distance < $1.distance }?
-            .location
+            let box = checkboxFrame(for: decoration)
+            var target = box.insetBy(dx: -8, dy: -max(4, (44 - box.height) / 2))
+            let top = index > 0 && isAdjacentCheckbox(decorations[index - 1], to: decoration)
+                ? target.minY : max(target.minY, decoration.frame.minY)
+            let bottom = index + 1 < decorations.count && isAdjacentCheckbox(decorations[index + 1], to: decoration)
+                ? target.maxY : min(target.maxY, decoration.frame.maxY)
+            target = CGRect(x: target.minX, y: top, width: target.width, height: bottom - top)
+            guard target.contains(point) else {
+                continue
+            }
+            let distance = abs(point.y - box.midY)
+            if best == nil || distance < best!.distance {
+                best = (decoration.paragraphLocation, distance)
+            }
+        }
+        return best?.location
+    }
+
+    private func isAdjacentCheckbox(_ neighbour: Decoration, to decoration: Decoration) -> Bool {
+        guard case .checkbox = neighbour.kind else {
+            return false
+        }
+        return abs(neighbour.frame.maxY - decoration.frame.minY) < 1 || abs(decoration.frame.maxY - neighbour.frame.minY) < 1
     }
 
     override init(frame: CGRect) {

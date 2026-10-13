@@ -256,15 +256,13 @@ enum MarkdownReader {
         guard paragraph.block.isList, var first = paragraph.segments.first, first.image == nil, first.link == nil else {
             return paragraph
         }
-        let isChecked: Bool
-        if first.text.hasPrefix("[ ] ") {
-            isChecked = false
-        } else if first.text.hasPrefix("[x] ") || first.text.hasPrefix("[X] ") {
-            isChecked = true
-        } else {
+        // An empty item loses its trailing space, leaving just the box.
+        let isEmpty = paragraph.segments.count == 1 && ["[ ]", "[x]", "[X]"].contains(first.text)
+        guard isEmpty || ["[ ] ", "[x] ", "[X] "].contains(where: first.text.hasPrefix) else {
             return paragraph
         }
-        first.text.removeFirst(4)
+        let isChecked = first.text.hasPrefix("[x]") || first.text.hasPrefix("[X]")
+        first.text.removeFirst(isEmpty ? 3 : 4)
         var result = paragraph
         result.block = .checklist
         result.isChecked = isChecked

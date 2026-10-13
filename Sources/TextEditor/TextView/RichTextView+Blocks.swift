@@ -130,6 +130,14 @@ extension RichTextView {
                 : .paragraph
             pendingParagraphFormat = (selectedRange.location, next)
             typingAttributes = RichTextFormatter.setting(next, in: endedParagraphAttributes, defaultFont: defaultFont)
+            // Mid-document, the new empty paragraph is the old paragraph's newline, which still carries its
+            // format, such as a tick or a heading. Markers and the caret's paragraph are read from it.
+            let newline = NSRange(location: selectedRange.location, length: 1)
+            if NSMaxRange(newline) <= textStorage.length,
+               RichTextFormatter.paragraphFormat(of: textStorage, at: newline.location) != next {
+                let attributes = textStorage.attributes(at: newline.location, effectiveRange: nil)
+                textStorage.setAttributes(RichTextFormatter.setting(next, in: attributes, defaultFont: defaultFont), range: newline)
+            }
         }
         restoreTypingBlockStyle()
         setNeedsBlockDecorations()

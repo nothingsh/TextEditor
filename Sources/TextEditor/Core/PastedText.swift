@@ -237,7 +237,7 @@ enum PastedText {
     }
 
     private static func hasSameParagraphStyle(_ lhs: Attributes, _ rhs: Attributes) -> Bool {
-        RichTextFormatter.blockStyle(in: lhs) == RichTextFormatter.blockStyle(in: rhs)
+        RichTextFormatter.paragraphFormat(in: lhs) == RichTextFormatter.paragraphFormat(in: rhs)
             && alignment(in: lhs) == alignment(in: rhs)
     }
 
@@ -245,12 +245,13 @@ enum PastedText {
         (attributes[.paragraphStyle] as? NSParagraphStyle)?.alignment ?? .natural
     }
 
-    /// Gives `range` the block style and alignment of `paragraph`, keeping inline styles.
+    /// Gives `range` the paragraph format (block style, list level and checkbox) and alignment of `paragraph`,
+    /// keeping inline styles.
     private static func restyle(_ text: NSMutableAttributedString, range: NSRange, like paragraph: Attributes, defaultFont: UIFont) {
-        let block = RichTextFormatter.blockStyle(in: paragraph)
+        let format = RichTextFormatter.paragraphFormat(in: paragraph)
         let alignment = alignment(in: paragraph)
         RichTextFormatter.transformAttributes(in: text, range: range) { attributes in
-            RichTextFormatter.setting(alignment: alignment, in: RichTextFormatter.setting(block, in: attributes, defaultFont: defaultFont))
+            RichTextFormatter.setting(alignment: alignment, in: RichTextFormatter.setting(format, in: attributes, defaultFont: defaultFont))
         }
     }
 }
