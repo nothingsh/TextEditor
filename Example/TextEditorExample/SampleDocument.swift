@@ -10,6 +10,11 @@ enum SampleDocument {
     - Start with `-` or `1.` and a space for a list
     - Wrap words in `**`, `*`, `~~` or backticks
     - Press Return twice to leave a list
+      - Press Tab to nest an item
+      - Start with `[ ]` and a space for a checklist
+
+    - [x] Install the package
+    - [ ] Tap a circle to tick it off
 
     1. Format some text
     2. Tap **Export** to see it as Markdown or HTML

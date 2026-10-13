@@ -9,7 +9,7 @@ public enum EditorSection: CaseIterable, Hashable {
     case textStyle
     /// A menu of body, headings, quote and code block.
     case blockStyle
-    /// Bulleted and numbered lists.
+    /// Bulleted, numbered and checklist items, and buttons that nest and unnest them.
     case lists
     /// Decrease and increase font size.
     case fontAdjustment

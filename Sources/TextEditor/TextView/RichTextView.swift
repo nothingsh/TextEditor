@@ -17,10 +17,11 @@ final class RichTextView: UITextView {
 
     let placeholderLabel = UILabel()
     let decorationView = BlockDecorationView()
+    private(set) lazy var checklistTapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleChecklistTap(_:)))
 
-    /// UITextView drops custom attributes whenever it recomputes typing attributes. A block style chosen
+    /// UITextView drops custom attributes whenever it recomputes typing attributes. A paragraph format chosen
     /// for an empty paragraph exists nowhere in the text yet, so it's remembered here with its caret location.
-    var pendingBlockStyle: (location: Int, style: BlockStyle)?
+    var pendingParagraphFormat: (location: Int, format: ParagraphFormat)?
 
     /// Whether typed Markdown such as `# ` or `**bold**` turns into formatting.
     var isMarkdownShortcutsEnabled = true
@@ -61,7 +62,10 @@ final class RichTextView: UITextView {
             defaultTextColor: defaultTextColor
         )
         if selectedRange.length == 0 && isCaretInEmptyParagraph {
-            state.blockStyle = caretBlockStyle
+            let format = caretParagraphFormat
+            state.blockStyle = format.block
+            state.listLevel = format.level
+            state.isChecked = format.isChecked
         }
         return state
     }
@@ -74,6 +78,7 @@ final class RichTextView: UITextView {
         setUpTextView()
         setUpPlaceholder()
         insertSubview(decorationView, at: 0)
+        addGestureRecognizer(checklistTapRecognizer)
         observeChanges()
     }
 
@@ -243,6 +248,33 @@ final class RichTextView: UITextView {
         return nil
     }
 
+    // MARK: Checkboxes
+
+    /// The checklist item whose checkbox is at `point`, in this view's coordinates.
+    func checklistItem(at point: CGPoint) -> Int? {
+        decorationView.checklistItem(at: convert(point, to: decorationView))
+    }
+
+    /// A tap on a checkbox ticks it instead of placing the caret, and doesn't bring up the keyboard.
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        let isOnCheckbox = checklistItem(at: gestureRecognizer.location(in: self)) != nil
+        if gestureRecognizer === checklistTapRecognizer {
+            return isOnCheckbox
+        }
+        if isOnCheckbox, gestureRecognizer is UITapGestureRecognizer {
+            return false
+        }
+        return super.gestureRecognizerShouldBegin(gestureRecognizer)
+    }
+
+    @objc private func handleChecklistTap(_ recognizer: UITapGestureRecognizer) {
+        guard recognizer.state == .ended, let location = checklistItem(at: recognizer.location(in: self)) else {
+            return
+        }
+        toggleChecklistItem(at: location)
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
     // MARK: Standard Edit Actions
 
     override func toggleBoldface(_ sender: Any?) {
@@ -273,7 +305,7 @@ final class RichTextView: UITextView {
         let caret = min(selectedRange.location, text.length)
         attributedText = RichTextFormatter.applyingDefaults(to: text, font: defaultFont, textColor: defaultTextColor)
         selectedRange = NSRange(location: caret, length: 0)
-        pendingBlockStyle = nil
+        pendingParagraphFormat = nil
         if text.length == 0 {
             typingAttributes = defaultAttributes
         }

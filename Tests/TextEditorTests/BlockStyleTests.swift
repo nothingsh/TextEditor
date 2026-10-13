@@ -137,7 +137,7 @@ final class BlockStyleTests: XCTestCase {
         textView.selectionDidChange()
         textView.deleteBackward()
         textView.selectionDidChange()
-        XCTAssertNil(textView.pendingBlockStyle)
+        XCTAssertNil(textView.pendingParagraphFormat)
 
         textView.insertText("\n")
         // UIKit later recomputes typing attributes without our custom key, then relayout redraws.

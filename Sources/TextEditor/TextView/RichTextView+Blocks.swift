@@ -8,24 +8,9 @@ import UIKit
 extension RichTextView {
     // MARK: Block Commands
 
-    /// Applies `block` to every paragraph the selection touches.
+    /// Applies `block` to every paragraph the selection touches. List items that stay list items keep their level.
     func setBlockStyle(_ block: BlockStyle) {
-        typingAttributes = RichTextFormatter.setting(block, in: typingAttributes, defaultFont: defaultFont)
-        if selectedRange.length == 0 && isCaretInEmptyParagraph {
-            pendingBlockStyle = (selectedRange.location, block)
-        }
-        let range = RichTextFormatter.paragraphRange(in: textStorage, for: selectedRange)
-        guard range.length > 0 else {
-            // An empty trailing paragraph only exists in the typing attributes.
-            setNeedsBlockDecorations()
-            context?.refresh()
-            return
-        }
-        editAttributes(in: range, actionName: "Paragraph Style") { text, range in
-            RichTextFormatter.transformAttributes(in: text, range: range) { attributes in
-                RichTextFormatter.setting(block, in: attributes, defaultFont: defaultFont)
-            }
-        }
+        updateParagraphFormats(actionName: "Paragraph Style") { $0.with(block) }
     }
 
     /// Turns `block` on, or back into plain paragraphs when the whole selection already has it.
@@ -37,13 +22,93 @@ extension RichTextView {
         formattingState.blockStyle
     }
 
+    /// Nests every list item the selection touches one level deeper, up to `BlockStyle.maxListLevel`.
+    func indentListItems() {
+        updateParagraphFormats(actionName: "Indent") { format in
+            ParagraphFormat(block: format.block, level: format.level + 1, isChecked: format.isChecked)
+        }
+    }
+
+    /// Moves every list item the selection touches one level out.
+    func outdentListItems() {
+        updateParagraphFormats(actionName: "Outdent") { format in
+            ParagraphFormat(block: format.block, level: format.level - 1, isChecked: format.isChecked)
+        }
+    }
+
+    /// Ticks every checklist item the selection touches, or unticks them all when they're all ticked.
+    func toggleChecklistItems() {
+        let formats = selectedParagraphFormats.filter { $0.block == .checklist }
+        let check = !formats.isEmpty && !formats.allSatisfy(\.isChecked)
+        updateParagraphFormats(actionName: check ? "Check" : "Uncheck") { format in
+            ParagraphFormat(block: format.block, level: format.level, isChecked: check)
+        }
+    }
+
+    /// Ticks or unticks the checklist item at `location`, wherever the selection is.
+    func toggleChecklistItem(at location: Int) {
+        let paragraph = RichTextFormatter.paragraphRange(in: textStorage, for: NSRange(location: location, length: 0))
+        let format = RichTextFormatter.paragraphFormat(of: textStorage, at: paragraph.location)
+        guard format.block == .checklist, paragraph.length > 0 else {
+            return
+        }
+        let toggled = ParagraphFormat(block: .checklist, level: format.level, isChecked: !format.isChecked)
+        editAttributes(in: paragraph, actionName: toggled.isChecked ? "Check" : "Uncheck") { text, range in
+            RichTextFormatter.transformAttributes(in: text, range: range) { attributes in
+                RichTextFormatter.setting(toggled, in: attributes, defaultFont: defaultFont)
+            }
+        }
+    }
+
+    /// The formats of the paragraphs the selection touches, including an empty one only described by the typing attributes.
+    var selectedParagraphFormats: [ParagraphFormat] {
+        if selectedRange.length == 0 {
+            return [caretParagraphFormat]
+        }
+        let range = RichTextFormatter.paragraphRange(in: textStorage, for: selectedRange)
+        return RichTextFormatter.paragraphRanges(in: textStorage, range: range).map {
+            RichTextFormatter.paragraphFormat(of: textStorage, at: $0.location)
+        }
+    }
+
+    /// Rewrites the format of each paragraph the selection touches, from its own current format,
+    /// and of the text typed next.
+    private func updateParagraphFormats(actionName: String, _ transform: (ParagraphFormat) -> ParagraphFormat) {
+        restoreTypingBlockStyle()
+        let typingFormat = transform(selectedRange.length == 0 ? caretParagraphFormat : RichTextFormatter.paragraphFormat(in: typingAttributes))
+        typingAttributes = RichTextFormatter.setting(typingFormat, in: typingAttributes, defaultFont: defaultFont)
+        if selectedRange.length == 0 && isCaretInEmptyParagraph {
+            pendingParagraphFormat = (selectedRange.location, typingFormat)
+        }
+        let range = RichTextFormatter.paragraphRange(in: textStorage, for: selectedRange)
+        guard range.length > 0 else {
+            // An empty trailing paragraph only exists in the typing attributes.
+            setNeedsBlockDecorations()
+            context?.refresh()
+            return
+        }
+        editAttributes(in: range, actionName: actionName) { text, range in
+            for paragraph in RichTextFormatter.paragraphRanges(in: text, range: range) where paragraph.length > 0 {
+                let format = transform(RichTextFormatter.paragraphFormat(of: text, at: paragraph.location))
+                RichTextFormatter.transformAttributes(in: text, range: paragraph) { attributes in
+                    RichTextFormatter.setting(format, in: attributes, defaultFont: defaultFont)
+                }
+            }
+        }
+    }
+
     // MARK: Typing
 
     /// Return on an empty list item or quote ends the list instead of adding another empty item,
-    /// and a new paragraph after a heading starts as body text.
+    /// or moves a nested item out a level, and a new paragraph after a heading starts as body text.
+    /// Tab in a list item nests it.
     override func insertText(_ text: String) {
         restoreTypingBlockStyle()
         if applyMarkdownShortcut(typing: text) {
+            return
+        }
+        if text == "\t", markedTextRange == nil, currentBlockStyle.isList {
+            indentListItems()
             return
         }
         guard text == "\n", markedTextRange == nil, selectedRange.length == 0 else {
@@ -51,17 +116,19 @@ extension RichTextView {
             restoreTypingBlockStyle()
             return
         }
-        let block = currentBlockStyle
-        if block.continuesOnReturn && isCaretInEmptyParagraph {
-            setBlockStyle(.paragraph)
+        let format = caretParagraphFormat
+        if format.block.continuesOnReturn && isCaretInEmptyParagraph {
+            format.level > 0 ? outdentListItems() : setBlockStyle(.paragraph)
             return
         }
         let endedParagraphAttributes = typingAttributes
         super.insertText(text)
 
         if isCaretInEmptyParagraph {
-            let next: BlockStyle = block.continuesOnReturn || block == .codeBlock ? block : .paragraph
-            pendingBlockStyle = (selectedRange.location, next)
+            let next = format.block.continuesOnReturn || format.block == .codeBlock
+                ? ParagraphFormat(block: format.block, level: format.level)
+                : .paragraph
+            pendingParagraphFormat = (selectedRange.location, next)
             typingAttributes = RichTextFormatter.setting(next, in: endedParagraphAttributes, defaultFont: defaultFont)
         }
         restoreTypingBlockStyle()
@@ -76,16 +143,17 @@ extension RichTextView {
     }
 
     /// Delete at the start of a list item, quote or code line removes the block style before joining paragraphs.
+    /// A nested list item moves out a level first.
     override func deleteBackward() {
         guard markedTextRange == nil, selectedRange.length == 0 else {
             super.deleteBackward()
             return
         }
         restoreTypingBlockStyle()
-        let block = currentBlockStyle
+        let format = caretParagraphFormat
         let paragraph = RichTextFormatter.paragraphRange(in: textStorage, for: selectedRange)
-        if block != .paragraph, !block.isHeading, selectedRange.location == paragraph.location {
-            setBlockStyle(.paragraph)
+        if format.block != .paragraph, !format.block.isHeading, selectedRange.location == paragraph.location {
+            format.level > 0 ? outdentListItems() : setBlockStyle(.paragraph)
             return
         }
         super.deleteBackward()
@@ -94,9 +162,9 @@ extension RichTextView {
 
     /// Called whenever the selection moves, since UIKit has just recomputed the typing attributes.
     func selectionDidChange() {
-        // A remembered style only applies to the empty paragraph it was chosen for.
-        if let pending = pendingBlockStyle, selectedRange != NSRange(location: pending.location, length: 0) {
-            pendingBlockStyle = nil
+        // A remembered format only applies to the empty paragraph it was chosen for.
+        if let pending = pendingParagraphFormat, selectedRange != NSRange(location: pending.location, length: 0) {
+            pendingParagraphFormat = nil
         }
         restoreTypingBlockStyle()
         setNeedsBlockDecorations()
@@ -104,38 +172,46 @@ extension RichTextView {
     }
 
     /// The block style of the caret's paragraph, or the style it will get once typed into.
+    var caretBlockStyle: BlockStyle {
+        caretParagraphFormat.block
+    }
+
+    /// The format of the caret's paragraph, or the format it will get once typed into.
     ///
     /// Use this rather than `typingAttributes`: UIKit recomputes those at times of its own choosing
-    /// and drops `.blockStyle` from them.
-    var caretBlockStyle: BlockStyle {
+    /// and drops the editor's custom attributes from them.
+    var caretParagraphFormat: ParagraphFormat {
         let location = selectedRange.location
         let paragraph = RichTextFormatter.paragraphRange(in: textStorage, for: NSRange(location: location, length: 0))
         if !isCaretInEmptyParagraph {
-            return RichTextFormatter.blockStyle(of: textStorage, at: paragraph.location)
+            return RichTextFormatter.paragraphFormat(of: textStorage, at: paragraph.location)
         }
-        if let pending = pendingBlockStyle, pending.location == location {
-            return pending.style
+        if let pending = pendingParagraphFormat, pending.location == location {
+            return pending.format
         }
         if paragraph.length > 0 {
             // An empty line that already has its newline character.
-            return RichTextFormatter.blockStyle(of: textStorage, at: paragraph.location)
+            return RichTextFormatter.paragraphFormat(of: textStorage, at: paragraph.location)
         }
         if location > 0 {
-            // The empty trailing paragraph continues a list, quote or code block.
-            let previous = RichTextFormatter.blockStyle(of: textStorage, at: location - 1)
-            return previous.continuesOnReturn || previous == .codeBlock ? previous : .paragraph
+            // The empty trailing paragraph continues a list, quote or code block, unticked.
+            let previous = RichTextFormatter.paragraphFormat(of: textStorage, at: location - 1)
+            let continues = previous.block.continuesOnReturn || previous.block == .codeBlock
+            return continues ? ParagraphFormat(block: previous.block, level: previous.level) : .paragraph
         }
         return .paragraph
     }
 
-    /// Puts the caret paragraph's block style back into the typing attributes.
+    /// Puts the caret paragraph's format back into the typing attributes.
     func restoreTypingBlockStyle() {
         guard selectedRange.length == 0 else {
             return
         }
-        let block = caretBlockStyle
-        if RichTextFormatter.blockStyle(in: typingAttributes) != block {
-            typingAttributes[.blockStyle] = block == .paragraph ? nil : block.rawValue
+        let format = caretParagraphFormat
+        if RichTextFormatter.paragraphFormat(in: typingAttributes) != format {
+            typingAttributes[.blockStyle] = format.block == .paragraph ? nil : format.block.rawValue
+            typingAttributes[.listLevel] = format.level > 0 ? format.level : nil
+            typingAttributes[.checklistChecked] = format.isChecked ? true : nil
         }
     }
 
@@ -157,9 +233,9 @@ extension RichTextView {
 
         for paragraph in RichTextFormatter.paragraphRanges(in: textStorage, range: searchRange) where paragraph.length > 0 {
             let attributes = textStorage.attributes(at: paragraph.location, effectiveRange: nil)
-            let block = RichTextFormatter.blockStyle(in: attributes)
+            let format = RichTextFormatter.paragraphFormat(in: attributes)
             let style = attributes[.paragraphStyle] as? NSParagraphStyle ?? .default
-            let wanted: NSWritingDirection = block.indent > 0
+            let wanted: NSWritingDirection = format.indent > 0
                 ? RichTextFormatter.writingDirection(of: string.substring(with: paragraph)) ?? .natural
                 : .natural
             if style.baseWritingDirection != wanted, let updated = style.mutableCopy() as? NSMutableParagraphStyle {
@@ -194,18 +270,17 @@ extension RichTextView {
         let documentStart = layoutManager.documentRange.location
         let contentWidth = bounds.width - textContainerInset.left - textContainerInset.right
         var decorations: [BlockDecorationView.Decoration] = []
-        var previousBlock = BlockStyle.paragraph
-        var ordinal = 0
+        var numbering = ListNumbering()
 
-        func append(_ block: BlockStyle, frame: CGRect, baseline: CGFloat, attributes: RichTextFormatter.Attributes) {
+        func append(_ format: ParagraphFormat, at location: Int, frame: CGRect, baseline: CGFloat, attributes: RichTextFormatter.Attributes) {
             let isRightToLeft = RichTextFormatter.isRightToLeft(attributes)
-            ordinal = block == .numberedList ? (previousBlock == .numberedList ? ordinal + 1 : 1) : 0
-            previousBlock = block
+            let ordinal = numbering.next(format)
 
             let kind: BlockDecorationView.Decoration.Kind
-            switch block {
-            case .bulletList: kind = .bullet
+            switch format.block {
+            case .bulletList: kind = .bullet(level: format.level)
             case .numberedList: kind = .number(ordinal)
+            case .checklist: kind = .checkbox(isChecked: format.isChecked)
             case .quote: kind = .quoteBar
             case .codeBlock: kind = .codeBackground
             default: return
@@ -220,9 +295,10 @@ extension RichTextView {
             }
             decorations.append(.init(
                 kind: kind,
+                paragraphLocation: location,
                 frame: frame,
                 baseline: baseline,
-                indent: block.indent,
+                indent: format.indent,
                 isRightToLeft: isRightToLeft,
                 font: RichTextFormatter.font(in: attributes, defaultFont: defaultFont),
                 color: attributes[.foregroundColor] as? UIColor ?? defaultTextColor
@@ -244,7 +320,7 @@ extension RichTextView {
             )
             let firstLine = fragment.textLineFragments.first
             let baseline = frame.minY + (firstLine.map { $0.typographicBounds.minY + $0.glyphOrigin.y } ?? 0)
-            append(RichTextFormatter.blockStyle(in: attributes), frame: frame, baseline: baseline, attributes: attributes)
+            append(RichTextFormatter.paragraphFormat(in: attributes), at: offset, frame: frame, baseline: baseline, attributes: attributes)
             return true
         }
 
@@ -255,7 +331,7 @@ extension RichTextView {
             let caret = caretRect(for: endOfDocument)
             let font = RichTextFormatter.font(in: typingAttributes, defaultFont: defaultFont)
             let frame = CGRect(x: textContainerInset.left, y: caret.minY, width: contentWidth, height: caret.height)
-            append(caretBlockStyle, frame: frame, baseline: caret.minY + font.ascender, attributes: typingAttributes)
+            append(caretParagraphFormat, at: textStorage.length, frame: frame, baseline: caret.minY + font.ascender, attributes: typingAttributes)
         }
 
         decorationView.decorations = decorations

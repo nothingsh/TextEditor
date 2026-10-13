@@ -22,6 +22,10 @@ public final class RichTextContext: ObservableObject {
     @Published public private(set) var alignment: NSTextAlignment = .natural
     /// The block style shared by every paragraph the selection touches, or `.paragraph` when they differ.
     @Published public private(set) var blockStyle: BlockStyle = .paragraph
+    /// The nesting level of the list item at the start of the selection, from 0; 0 outside lists.
+    @Published public private(set) var listLevel = 0
+    /// Whether the checklist item at the start of the selection is ticked.
+    @Published public private(set) var isChecked = false
     /// The link under the caret or at the start of the selection.
     @Published public private(set) var link: URL?
     /// Whether ``undo()`` has anything to undo.
@@ -47,6 +51,16 @@ public final class RichTextContext: ObservableObject {
     /// Whether ``fontSize`` is above the smallest size the editor allows, 8 points.
     public var canDecreaseFontSize: Bool {
         fontSize > RichTextFormatter.fontSizeRange.lowerBound
+    }
+
+    /// Whether ``indentListItems()`` can nest the list item at the selection deeper.
+    public var canIndentListItems: Bool {
+        blockStyle.isList && listLevel < BlockStyle.maxListLevel
+    }
+
+    /// Whether ``outdentListItems()`` can move the list item at the selection out.
+    public var canOutdentListItems: Bool {
+        blockStyle.isList && listLevel > 0
     }
 
     // MARK: Commands
@@ -83,6 +97,23 @@ public final class RichTextContext: ObservableObject {
     /// Applies `blockStyle`, or reverts to a plain paragraph if it's already applied.
     public func toggleBlockStyle(_ blockStyle: BlockStyle) {
         textView?.toggleBlockStyle(blockStyle)
+    }
+
+    /// Nests every list item the selection touches one level deeper. Tab and ⌘] do the same.
+    /// Paragraphs that aren't list items are left alone.
+    public func indentListItems() {
+        textView?.indentListItems()
+    }
+
+    /// Moves every list item the selection touches one level out. Shift-Tab and ⌘[ do the same.
+    public func outdentListItems() {
+        textView?.outdentListItems()
+    }
+
+    /// Ticks every checklist item the selection touches, or unticks them when they're all ticked.
+    /// Tapping a checkbox ticks just that item.
+    public func toggleChecklistItems() {
+        textView?.toggleChecklistItems()
     }
 
     /// Links the selection, or relinks the whole link under the caret. Pass `nil` to remove the link.
@@ -149,6 +180,8 @@ public final class RichTextContext: ObservableObject {
         update(\.textColor, to: state.textColor)
         update(\.alignment, to: state.alignment)
         update(\.blockStyle, to: state.blockStyle)
+        update(\.listLevel, to: state.listLevel)
+        update(\.isChecked, to: state.isChecked)
         update(\.link, to: state.link)
         update(\.canUndo, to: textView.editorUndoManager?.canUndo ?? false)
         update(\.canRedo, to: textView.editorUndoManager?.canRedo ?? false)

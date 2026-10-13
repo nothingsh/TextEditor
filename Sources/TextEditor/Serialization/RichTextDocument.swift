@@ -12,6 +12,14 @@ enum RichTextDocument {
         var block: BlockStyle
         var alignment: NSTextAlignment
         var segments: [Segment]
+        /// Nesting level of a list item, from 0.
+        var level = 0
+        /// Whether a checklist item is ticked.
+        var isChecked = false
+
+        var format: ParagraphFormat {
+            ParagraphFormat(block: block, level: level, isChecked: isChecked)
+        }
     }
 
     /// A run of text with uniform styling, or a single image.
@@ -34,10 +42,13 @@ enum RichTextDocument {
         return RichTextFormatter.paragraphRanges(in: text, range: fullRange).map { range -> Paragraph in
             let content = contentRange(of: range, in: text)
             let attributes = range.length > 0 ? text.attributes(at: range.location, effectiveRange: nil) : [:]
+            let format = RichTextFormatter.paragraphFormat(in: attributes)
             return Paragraph(
-                block: RichTextFormatter.blockStyle(in: attributes),
+                block: format.block,
                 alignment: (attributes[.paragraphStyle] as? NSParagraphStyle)?.alignment ?? .natural,
-                segments: segments(of: text, in: content, defaultFont: defaultFont, defaultTextColor: defaultTextColor)
+                segments: segments(of: text, in: content, defaultFont: defaultFont, defaultTextColor: defaultTextColor),
+                level: format.level,
+                isChecked: format.isChecked
             )
         }
     }
@@ -87,7 +98,7 @@ enum RichTextDocument {
         var previousParagraphAttributes: RichTextFormatter.Attributes?
 
         for paragraph in paragraphs {
-            var paragraphAttributes = RichTextFormatter.setting(paragraph.block, in: baseAttributes, defaultFont: defaultFont)
+            var paragraphAttributes = RichTextFormatter.setting(paragraph.format, in: baseAttributes, defaultFont: defaultFont)
             if paragraph.alignment != .natural {
                 paragraphAttributes = RichTextFormatter.setting(alignment: paragraph.alignment, in: paragraphAttributes)
             }
@@ -123,16 +134,10 @@ enum RichTextDocument {
 
     // MARK: Helpers
 
-    /// Ordinal of each numbered list item, 1-based within each run of consecutive items.
+    /// Ordinal of each numbered list item, 1-based within each run of items at its level; 0 for other paragraphs.
     static func ordinals(of paragraphs: [Paragraph]) -> [Int] {
-        var ordinals: [Int] = []
-        var current = 0
-        for (index, paragraph) in paragraphs.enumerated() {
-            let continues = index > 0 && paragraphs[index - 1].block == .numberedList
-            current = paragraph.block == .numberedList ? (continues ? current + 1 : 1) : 0
-            ordinals.append(current)
-        }
-        return ordinals
+        var numbering = ListNumbering()
+        return paragraphs.map { numbering.next($0.format) }
     }
 
     /// Schemes that are safe to store and export. Anything else, notably `javascript:` and `data:`,

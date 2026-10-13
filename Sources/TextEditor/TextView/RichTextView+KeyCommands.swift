@@ -9,7 +9,8 @@ import UIKit
 /// and ⌘F, ⌘G and ⌥⌘F from the find interaction.
 enum EditorKeyCommand: String, CaseIterable {
     case strikethrough, code, link
-    case body, heading1, heading2, heading3, bulletList, numberedList, quote, codeBlock
+    case body, heading1, heading2, heading3, bulletList, numberedList, checklist, quote, codeBlock
+    case indent, outdent, toggleChecked
     case increaseFontSize, decreaseFontSize
 
     var title: String {
@@ -23,6 +24,10 @@ enum EditorKeyCommand: String, CaseIterable {
         case .heading3: return "Heading 3"
         case .bulletList: return "Bulleted List"
         case .numberedList: return "Numbered List"
+        case .checklist: return "Checklist"
+        case .indent: return "Indent"
+        case .outdent: return "Outdent"
+        case .toggleChecked: return "Mark as Checked"
         case .quote: return "Quote"
         case .codeBlock: return "Code Block"
         case .increaseFontSize: return "Bigger"
@@ -41,6 +46,10 @@ enum EditorKeyCommand: String, CaseIterable {
         case .heading3: return "3"
         case .bulletList: return "8"
         case .numberedList: return "7"
+        case .checklist: return "l"
+        case .indent: return "]"
+        case .outdent: return "["
+        case .toggleChecked: return "u"
         case .quote: return "'"
         case .codeBlock: return "c"
         case .increaseFontSize: return "="
@@ -50,9 +59,9 @@ enum EditorKeyCommand: String, CaseIterable {
 
     var modifierFlags: UIKeyModifierFlags {
         switch self {
-        case .strikethrough, .bulletList, .numberedList: return [.command, .shift]
+        case .strikethrough, .bulletList, .numberedList, .checklist, .toggleChecked: return [.command, .shift]
         case .body, .heading1, .heading2, .heading3, .codeBlock: return [.command, .alternate]
-        case .code, .link, .quote, .increaseFontSize, .decreaseFontSize: return .command
+        case .code, .link, .quote, .indent, .outdent, .increaseFontSize, .decreaseFontSize: return .command
         }
     }
 
@@ -65,6 +74,7 @@ enum EditorKeyCommand: String, CaseIterable {
         case .heading3: return .heading3
         case .bulletList: return .bulletList
         case .numberedList: return .numberedList
+        case .checklist: return .checklist
         case .quote: return .quote
         case .codeBlock: return .codeBlock
         default: return nil
@@ -86,7 +96,25 @@ extension RichTextView {
                 propertyList: command.rawValue
             )
         }
-        return (super.keyCommands ?? []) + commands
+        // In a list item, Tab and Shift-Tab nest and unnest it. Elsewhere, and while composing with an
+        // input method, Tab keeps its usual meaning. They have no title, so they stay out of the ⌘ overlay.
+        guard markedTextRange == nil, currentBlockStyle.isList else {
+            return (super.keyCommands ?? []) + commands
+        }
+        let tab = UIKeyCommand(input: "\t", modifierFlags: [], action: #selector(indentListItemsFromKeyboard))
+        let shiftTab = UIKeyCommand(input: "\t", modifierFlags: .shift, action: #selector(outdentListItemsFromKeyboard))
+        for command in [tab, shiftTab] {
+            command.wantsPriorityOverSystemBehavior = true
+        }
+        return (super.keyCommands ?? []) + commands + [tab, shiftTab]
+    }
+
+    @objc private func indentListItemsFromKeyboard() {
+        indentListItems()
+    }
+
+    @objc private func outdentListItemsFromKeyboard() {
+        outdentListItems()
     }
 
     @objc func performEditorKeyCommand(_ sender: UIKeyCommand) {
@@ -105,6 +133,9 @@ extension RichTextView {
         case .strikethrough: toggle(.strikethrough)
         case .code: toggle(.code)
         case .link: presentLinkEditor()
+        case .indent: indentListItems()
+        case .outdent: outdentListItems()
+        case .toggleChecked: toggleChecklistItems()
         case .increaseFontSize: adjustFontSize(by: 1)
         case .decreaseFontSize: adjustFontSize(by: -1)
         default: break

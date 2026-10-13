@@ -26,6 +26,8 @@ struct FormattingState: Equatable {
     var textColor: UIColor
     var alignment: NSTextAlignment
     var blockStyle: BlockStyle
+    var listLevel = 0
+    var isChecked = false
     var link: URL?
 }
 
@@ -91,12 +93,17 @@ enum RichTextFormatter {
         let blockStyle = isEmptyParagraph && selection.length == 0
             ? self.blockStyle(in: typingAttributes)
             : commonBlockStyle(in: text, range: paragraph) ?? .paragraph
+        let format = isEmptyParagraph && selection.length == 0
+            ? paragraphFormat(in: typingAttributes)
+            : paragraphFormat(of: text, at: paragraph.location)
         return FormattingState(
             activeStyles: Set(activeStyles),
             fontSize: font(in: attributes, defaultFont: defaultFont).pointSize,
             textColor: attributes[.foregroundColor] as? UIColor ?? defaultTextColor,
             alignment: (attributes[.paragraphStyle] as? NSParagraphStyle)?.alignment ?? .natural,
             blockStyle: blockStyle,
+            listLevel: blockStyle.isList ? format.level : 0,
+            isChecked: blockStyle == .checklist && format.isChecked,
             link: link(in: text, at: selection)
         )
     }

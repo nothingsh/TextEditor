@@ -16,11 +16,16 @@ enum MarkdownWriter {
         var output = ""
         var previousBlock: BlockStyle?
         var index = 0
+        /// The content indent of each open list level, which nested items are indented by.
+        var listIndents: [Int] = []
 
         func append(_ block: String, style: BlockStyle) {
+            if !style.isList {
+                listIndents = []
+            }
             if !output.isEmpty {
                 switch (previousBlock, style) {
-                case (.bulletList, .bulletList), (.numberedList, .numberedList):
+                case let (previous?, current) where previous.isList && current.isList:
                     output += "\n"
                 case (.quote, .quote):
                     // Keeps consecutive quote paragraphs in one block quote without merging their lines.
@@ -51,16 +56,27 @@ enum MarkdownWriter {
             switch paragraph.block {
             case .heading1, .heading2, .heading3:
                 append(String(repeating: "#", count: paragraph.block.headingLevel ?? 1) + " " + content, style: paragraph.block)
-            case .bulletList:
-                append("- " + content, style: .bulletList)
-            case .numberedList:
-                append("\(ordinals[index]). " + content, style: .numberedList)
+            case .bulletList, .numberedList, .checklist:
+                // A nested item can't skip levels.
+                let level = min(paragraph.level, listIndents.count)
+                listIndents.removeLast(listIndents.count - level)
+                let indent = String(repeating: " ", count: listIndents.reduce(0, +))
+                let marker: String
+                switch paragraph.block {
+                case .numberedList: marker = "\(ordinals[index]). "
+                case .checklist: marker = paragraph.isChecked ? "- [x] " : "- [ ] "
+                default: marker = "- "
+                }
+                // A task's checkbox is part of its content, so nested items align with the text after "- ".
+                listIndents.append(paragraph.block == .numberedList ? marker.count : 2)
+                append(indent + marker + content, style: paragraph.block)
             case .quote:
                 append("> " + escapingLineStart(content), style: .quote)
             case .paragraph, .codeBlock:
                 if content.isEmpty {
                     // Markdown can't represent empty paragraphs; still let them end a list.
                     previousBlock = .paragraph
+                    listIndents = []
                 } else {
                     append(escapingLineStart(content), style: .paragraph)
                 }
@@ -216,12 +232,44 @@ enum MarkdownReader {
             }
 
             if identity != currentIdentity || paragraphs.isEmpty {
-                paragraphs.append(Paragraph(block: block, alignment: .natural, segments: []))
+                paragraphs.append(Paragraph(block: block, alignment: .natural, segments: [], level: listLevel(for: run.presentationIntent)))
                 currentIdentity = identity
             }
             paragraphs[paragraphs.count - 1].segments.append(segment(text: text, run: run))
         }
-        return paragraphs
+        return paragraphs.map(readingTaskMarker)
+    }
+
+    /// Nesting depth of the innermost list, from 0.
+    private static func listLevel(for intent: PresentationIntent?) -> Int {
+        let lists = intent?.components.filter {
+            switch $0.kind {
+            case .orderedList, .unorderedList: return true
+            default: return false
+            }
+        }
+        return max(0, (lists?.count ?? 0) - 1)
+    }
+
+    /// GitHub task list items arrive as list items starting with a literal `[ ] ` or `[x] `.
+    private static func readingTaskMarker(_ paragraph: Paragraph) -> Paragraph {
+        guard paragraph.block.isList, var first = paragraph.segments.first, first.image == nil, first.link == nil else {
+            return paragraph
+        }
+        let isChecked: Bool
+        if first.text.hasPrefix("[ ] ") {
+            isChecked = false
+        } else if first.text.hasPrefix("[x] ") || first.text.hasPrefix("[X] ") {
+            isChecked = true
+        } else {
+            return paragraph
+        }
+        first.text.removeFirst(4)
+        var result = paragraph
+        result.block = .checklist
+        result.isChecked = isChecked
+        result.segments = (first.text.isEmpty ? [] : [first]) + paragraph.segments.dropFirst()
+        return result
     }
 
     private static func segment(text: String, run: AttributedString.Runs.Run) -> Segment {

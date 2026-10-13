@@ -17,7 +17,15 @@ enum HTMLWriter {
         while index < paragraphs.count {
             let paragraph = paragraphs[index]
             switch paragraph.block {
-            case .bulletList, .numberedList, .quote, .codeBlock:
+            case .bulletList, .numberedList, .checklist:
+                var group: [Paragraph] = []
+                while index < paragraphs.count, paragraphs[index].block.isList {
+                    group.append(paragraphs[index])
+                    index += 1
+                }
+                lines.append(lists(group))
+                continue
+            case .quote, .codeBlock:
                 // Consecutive paragraphs of these styles share one container element.
                 var group: [Paragraph] = []
                 while index < paragraphs.count, paragraphs[index].block == paragraph.block {
@@ -43,14 +51,43 @@ enum HTMLWriter {
         case .codeBlock:
             let code = group.map { escaped($0.segments.map(\.text).joined()) }.joined(separator: "\n")
             return "<pre><code>\(code)</code></pre>"
-        case .quote:
+        default:
             let items = group.map { "<p\(blockAttributes($0))>\(inlineHTML($0.segments, isHeading: false))</p>" }
             return "<blockquote>\n" + items.joined(separator: "\n") + "\n</blockquote>"
-        default:
-            let tag = block == .numberedList ? "ol" : "ul"
-            let items = group.map { "<li\(blockAttributes($0))>\(inlineHTML($0.segments, isHeading: false))</li>" }
-            return "<\(tag)>\n" + items.joined(separator: "\n") + "\n</\(tag)>"
         }
+    }
+
+    /// Consecutive list items as nested `<ul>` and `<ol>` elements. A nested list goes inside its parent's `<li>`,
+    /// and a change of list style at the same level starts a new list. Checklist items are `<ul>` items
+    /// that start with a disabled checkbox, as on GitHub.
+    private static func lists(_ items: [Paragraph]) -> String {
+        var html = ""
+        // The tag of each open list; each has an open <li>, except just after it's opened.
+        var open: [String] = []
+        for item in items {
+            let tag = item.block == .numberedList ? "ol" : "ul"
+            // A nested item can't skip levels.
+            let level = min(item.level, open.count)
+            if level < open.count {
+                while open.count > level + 1 {
+                    html += "</li>\n</\(open.removeLast())>\n"
+                }
+                html += "</li>\n"
+                if open[level] != tag {
+                    html += "</\(open.removeLast())>\n<\(tag)>\n"
+                    open.append(tag)
+                }
+            } else {
+                html += (open.isEmpty ? "" : "\n") + "<\(tag)>\n"
+                open.append(tag)
+            }
+            let checkbox = item.block == .checklist ? "<input type=\"checkbox\" disabled\(item.isChecked ? " checked" : "")> " : ""
+            html += "<li\(blockAttributes(item))>" + checkbox + inlineHTML(item.segments, isHeading: false)
+        }
+        while let tag = open.popLast() {
+            html += "</li>\n</\(tag)>" + (open.isEmpty ? "" : "\n")
+        }
+        return html
     }
 
     /// `dir="rtl"` for right-to-left text, decided by its first strong character as in the editor,
@@ -125,6 +162,8 @@ struct HTMLReader {
     private var headingLevel: Int?
     private var isInPre = false
     private var alignment: NSTextAlignment = .natural
+    /// Set by a checkbox inside the list item being read.
+    private var checkbox: Bool?
     private var skippedTag: String?
 
     static func paragraphs(from html: String) -> [Paragraph] {
@@ -199,6 +238,10 @@ struct HTMLReader {
                 appendText("\n")
             } else {
                 appendText("\u{2028}")
+            }
+        case "input":
+            if attributes["type"]?.lowercased() == "checkbox", !listStack.isEmpty {
+                checkbox = attributes["checked"] != nil
             }
         case "img":
             if let source = attributes["src"], let image = ImageAttachments.payload(fromDataURI: source) {
@@ -276,6 +319,7 @@ struct HTMLReader {
         defer {
             segments = []
             alignment = .natural
+            checkbox = nil
         }
         if !isInPre, let last = segments.indices.last {
             // Trailing whitespace before a block boundary is insignificant.
@@ -300,8 +344,13 @@ struct HTMLReader {
         let block: BlockStyle
         if let headingLevel {
             block = BlockStyle(headingLevel: headingLevel)
+        } else if let checkbox, !listStack.isEmpty {
+            block = .checklist
+            paragraphs.append(Paragraph(block: block, alignment: alignment, segments: segments, level: listStack.count - 1, isChecked: checkbox))
+            return
         } else if let list = listStack.last {
-            block = list
+            paragraphs.append(Paragraph(block: list, alignment: alignment, segments: segments, level: listStack.count - 1))
+            return
         } else if quoteDepth > 0 {
             block = .quote
         } else {
@@ -354,7 +403,8 @@ struct HTMLReader {
 
     private static func attributes(in tag: String) -> [String: String] {
         var result: [String: String] = [:]
-        let pattern = #"([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))"#
+        // Values are optional, so boolean attributes such as `checked` are found too.
+        let pattern = #"([a-zA-Z-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return result
         }

@@ -85,11 +85,19 @@ public struct RichTextToolbar: View {
         case .blockStyle:
             blockStyleMenu
         case .lists:
-            ForEach([BlockStyle.bulletList, .numberedList], id: \.self) { style in
+            ForEach([BlockStyle.bulletList, .numberedList, .checklist], id: \.self) { style in
                 ToolbarButton(style.title, systemImage: style.systemImage, isActive: context.blockStyle == style) {
                     context.toggleBlockStyle(style)
                 }
             }
+            ToolbarButton("Outdent", systemImage: "decrease.indent") {
+                context.outdentListItems()
+            }
+            .disabled(!context.canOutdentListItems)
+            ToolbarButton("Indent", systemImage: "increase.indent") {
+                context.indentListItems()
+            }
+            .disabled(!context.canIndentListItems)
         case .fontAdjustment:
             ToolbarButton("Decrease Font Size", systemImage: "minus.circle") {
                 context.adjustFontSize(by: -1)
@@ -434,6 +442,7 @@ private extension BlockStyle {
         case .heading3: return "Heading 3"
         case .bulletList: return "Bulleted List"
         case .numberedList: return "Numbered List"
+        case .checklist: return "Checklist"
         case .quote: return "Quote"
         case .codeBlock: return "Code Block"
         }
@@ -443,6 +452,7 @@ private extension BlockStyle {
         switch self {
         case .bulletList: return "list.bullet"
         case .numberedList: return "list.number"
+        case .checklist: return "checklist"
         default: return "textformat"
         }
     }

@@ -22,8 +22,10 @@ public enum BlockStyle: String, CaseIterable, Hashable {
     case heading3
     /// A bulleted list item.
     case bulletList
-    /// A numbered list item, numbered from 1 within each run of consecutive items.
+    /// A numbered list item, numbered from 1 within each run of consecutive items at the same level.
     case numberedList
+    /// A checklist item with a checkbox in place of a bullet. Tap the checkbox to tick it.
+    case checklist
     /// A block quote, marked with a bar at its leading edge.
     case quote
     /// A line of a code block, in a monospaced font on a shaded background.
@@ -39,10 +41,16 @@ public enum BlockStyle: String, CaseIterable, Hashable {
         }
     }
 
-    /// Whether this is a bulleted or numbered list item.
+    /// Whether this is a bulleted, numbered or checklist item. List items can be nested.
     public var isList: Bool {
-        self == .bulletList || self == .numberedList
+        self == .bulletList || self == .numberedList || self == .checklist
     }
+
+    /// The deepest list level, counted from 0.
+    public static let maxListLevel = 5
+
+    /// Extra indent for each level of list nesting.
+    static let levelIndent: CGFloat = 24
 
     var isHeading: Bool {
         headingLevel != nil
@@ -66,10 +74,16 @@ public enum BlockStyle: String, CaseIterable, Hashable {
     var indent: CGFloat {
         switch self {
         case .bulletList, .numberedList: return 24
+        case .checklist: return 28
         case .quote: return 16
         case .codeBlock: return 8
         default: return 0
         }
+    }
+
+    /// The leading indent of a paragraph at `level`; levels only apply to lists.
+    func indent(level: Int) -> CGFloat {
+        isList ? indent + CGFloat(level) * Self.levelIndent : indent
     }
 
     /// Headings get breathing room; other blocks stay tight so lists, quotes and code backgrounds read as one unit.
@@ -91,9 +105,64 @@ public enum BlockStyle: String, CaseIterable, Hashable {
     }
 }
 
+/// Everything a paragraph carries beyond its text: the block style, and for list items their nesting
+/// and checkbox. These live in attributes on every character of the paragraph and are read from its first.
+struct ParagraphFormat: Equatable {
+    var block: BlockStyle
+    /// Nesting depth from 0, always 0 for paragraphs that aren't list items.
+    var level = 0
+    /// Whether a checklist item is ticked, always `false` for other paragraphs.
+    var isChecked = false
+
+    init(block: BlockStyle, level: Int = 0, isChecked: Bool = false) {
+        self.block = block
+        self.level = block.isList ? min(max(level, 0), BlockStyle.maxListLevel) : 0
+        self.isChecked = block == .checklist && isChecked
+    }
+
+    static let paragraph = ParagraphFormat(block: .paragraph)
+
+    var indent: CGFloat {
+        block.indent(level: level)
+    }
+
+    /// The same format with `block`, keeping the level between list styles.
+    func with(_ block: BlockStyle) -> ParagraphFormat {
+        ParagraphFormat(block: block, level: level, isChecked: isChecked)
+    }
+}
+
 extension NSAttributedString.Key {
     /// Holds a `BlockStyle` raw value. Plain strings keep the attribute archivable.
     static let blockStyle = NSAttributedString.Key("TextEditor.BlockStyle")
+    /// A list item's nesting level as an integer; absent at level 0.
+    static let listLevel = NSAttributedString.Key("TextEditor.ListLevel")
+    /// `true` on a ticked checklist item; absent otherwise.
+    static let checklistChecked = NSAttributedString.Key("TextEditor.Checked")
+}
+
+/// Numbers list items the way Markdown and HTML nest them. Each level counts its own run of numbered items;
+/// a shallower item ends the deeper runs, a different list style at the same level restarts the count,
+/// and any other paragraph ends every run.
+struct ListNumbering {
+    private var runs: [(block: BlockStyle, count: Int)] = []
+
+    /// The ordinal of `format` if it's a numbered item, otherwise 0.
+    mutating func next(_ format: ParagraphFormat) -> Int {
+        guard format.block.isList else {
+            runs = []
+            return 0
+        }
+        let level = format.level
+        if runs.count > level + 1 {
+            runs.removeLast(runs.count - level - 1)
+        }
+        while runs.count <= level {
+            runs.append((.paragraph, 0))
+        }
+        runs[level] = runs[level].block == format.block ? (format.block, runs[level].count + 1) : (format.block, 1)
+        return format.block == .numberedList ? runs[level].count : 0
+    }
 }
 
 extension RichTextFormatter {
@@ -108,6 +177,21 @@ extension RichTextFormatter {
             return .paragraph
         }
         return blockStyle(in: text.attributes(at: location, effectiveRange: nil))
+    }
+
+    static func paragraphFormat(in attributes: Attributes) -> ParagraphFormat {
+        ParagraphFormat(
+            block: blockStyle(in: attributes),
+            level: (attributes[.listLevel] as? Int) ?? 0,
+            isChecked: (attributes[.checklistChecked] as? Bool) ?? false
+        )
+    }
+
+    static func paragraphFormat(of text: NSAttributedString, at location: Int) -> ParagraphFormat {
+        guard location < text.length else {
+            return .paragraph
+        }
+        return paragraphFormat(in: text.attributes(at: location, effectiveRange: nil))
     }
 
     /// Ranges of each paragraph in `range`, including its trailing newline.
@@ -162,14 +246,23 @@ extension RichTextFormatter {
     // MARK: Writing Blocks
 
     /// Applies `block` to one paragraph's attributes: the marker, indentation and, for headings and code, the font.
+    /// A list item that stays a list item keeps its level.
     static func setting(_ block: BlockStyle, in attributes: Attributes, defaultFont: UIFont) -> Attributes {
+        setting(paragraphFormat(in: attributes).with(block), in: attributes, defaultFont: defaultFont)
+    }
+
+    /// Applies a whole paragraph format: block style, list level and checkbox, with matching indentation and font.
+    static func setting(_ format: ParagraphFormat, in attributes: Attributes, defaultFont: UIFont) -> Attributes {
         var result = attributes
+        let block = format.block
         let previous = blockStyle(in: attributes)
         result[.blockStyle] = block == .paragraph ? nil : block.rawValue
+        result[.listLevel] = format.level > 0 ? format.level : nil
+        result[.checklistChecked] = format.isChecked ? true : nil
 
         let style = (attributes[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
-        style.firstLineHeadIndent = block.indent
-        style.headIndent = block.indent
+        style.firstLineHeadIndent = format.indent
+        style.headIndent = format.indent
         style.paragraphSpacingBefore = block.spacingBefore
         style.paragraphSpacing = block.spacingAfter
         result[.paragraphStyle] = style

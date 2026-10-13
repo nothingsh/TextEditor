@@ -5,7 +5,7 @@
 
 import UIKit
 
-/// Shows list markers, quote bars and code block backgrounds behind the text.
+/// Shows list markers, checkboxes, quote bars and code block backgrounds behind the text.
 ///
 /// UITextView keeps its text layout manager's delegate for itself, so custom layout fragments are off the table.
 /// Instead, `RichTextView` reads paragraph frames from TextKit 2 after layout and hands them to this view.
@@ -16,13 +16,16 @@ import UIKit
 final class BlockDecorationView: UIView {
     struct Decoration: Equatable {
         enum Kind: Equatable {
-            case bullet
+            case bullet(level: Int)
             case number(Int)
+            case checkbox(isChecked: Bool)
             case quoteBar
             case codeBackground
         }
 
         var kind: Kind
+        /// Where the paragraph starts in the text, so a tapped checkbox can be found.
+        var paragraphLocation: Int
         /// The paragraph's frame in text view coordinates.
         var frame: CGRect
         /// Baseline of the paragraph's first line, used to align markers.
@@ -54,10 +57,23 @@ final class BlockDecorationView: UIView {
     private var backgroundLayers: [CALayer] = []
     private var bulletLayers: [CAShapeLayer] = []
     private var numberLayers: [CATextLayer] = []
+    private var checkboxLayers: [CheckboxLayer] = []
 
     /// Layers currently shown, for tests and diagnostics.
     var renderedLayerCount: Int {
-        (backgroundLayers + bulletLayers + numberLayers).filter { !$0.isHidden }.count
+        (backgroundLayers + bulletLayers + numberLayers + checkboxLayers).filter { !$0.isHidden }.count
+    }
+
+    /// The paragraph location of the checklist item whose checkbox is at `point`, in this view's coordinates.
+    /// The target is at least 44 points tall, so it's easy to hit.
+    func checklistItem(at point: CGPoint) -> Int? {
+        decorations.first { decoration in
+            guard case .checkbox = decoration.kind else {
+                return false
+            }
+            let box = checkboxFrame(for: decoration)
+            return box.insetBy(dx: -8, dy: -max(4, (44 - box.height) / 2)).contains(point)
+        }?.paragraphLocation
     }
 
     override init(frame: CGRect) {
@@ -96,6 +112,7 @@ final class BlockDecorationView: UIView {
         var backgroundCount = 0
         var bulletCount = 0
         var numberCount = 0
+        var checkboxCount = 0
 
         for decoration in decorations where region.map(decoration.frame.intersects) ?? true {
             switch decoration.kind {
@@ -112,10 +129,15 @@ final class BlockDecorationView: UIView {
                 layer.cornerRadius = 1.5
                 layer.backgroundColor = resolved(.tertiaryLabel)
                 backgroundCount += 1
-            case .bullet:
+            case .bullet(let level):
                 let layer = reusableLayer(at: bulletCount, in: &bulletLayers, make: CAShapeLayer.init)
-                configureBullet(layer, for: decoration)
+                configureBullet(layer, level: level, for: decoration)
                 bulletCount += 1
+            case .checkbox(let isChecked):
+                let layer = reusableLayer(at: checkboxCount, in: &checkboxLayers, make: CheckboxLayer.init)
+                layer.frame = checkboxFrame(for: decoration)
+                layer.configure(isChecked: isChecked, tint: resolved(tintColor), border: resolved(.tertiaryLabel), check: resolved(.white))
+                checkboxCount += 1
             case .number(let ordinal):
                 let layer = reusableLayer(at: numberCount, in: &numberLayers, make: CATextLayer.init)
                 configureNumber(layer, ordinal: ordinal, for: decoration)
@@ -126,10 +148,11 @@ final class BlockDecorationView: UIView {
         hideLayers(in: backgroundLayers, from: backgroundCount)
         hideLayers(in: bulletLayers, from: bulletCount)
         hideLayers(in: numberLayers, from: numberCount)
+        hideLayers(in: checkboxLayers, from: checkboxCount)
     }
 
-    /// A filled dot at the text side of the indent, centred on the x-height.
-    private func configureBullet(_ layer: CAShapeLayer, for decoration: Decoration) {
+    /// A dot at the text side of the indent, centred on the x-height: filled, hollow, then square as lists nest.
+    private func configureBullet(_ layer: CAShapeLayer, level: Int, for decoration: Decoration) {
         let font = markerFont(for: decoration)
         let diameter = (font.pointSize * 0.3).rounded()
         let distanceFromEdge = decoration.indent - 8 - diameter / 2
@@ -138,8 +161,31 @@ final class BlockDecorationView: UIView {
             y: decoration.baseline - font.xHeight / 2
         )
         layer.frame = CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter)
-        layer.path = UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: diameter, height: diameter)).cgPath
-        layer.fillColor = resolved(decoration.color)
+        let bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
+        switch level % 3 {
+        case 1:
+            layer.path = UIBezierPath(ovalIn: bounds.insetBy(dx: 0.6, dy: 0.6)).cgPath
+            layer.fillColor = nil
+            layer.strokeColor = resolved(decoration.color)
+            layer.lineWidth = 1.2
+        case 2:
+            layer.path = UIBezierPath(rect: bounds.insetBy(dx: 0.5, dy: 0.5)).cgPath
+            layer.fillColor = resolved(decoration.color)
+            layer.strokeColor = nil
+        default:
+            layer.path = UIBezierPath(ovalIn: bounds).cgPath
+            layer.fillColor = resolved(decoration.color)
+            layer.strokeColor = nil
+        }
+    }
+
+    /// A circle at the text side of the indent, centred on the cap height, like Notes.
+    func checkboxFrame(for decoration: Decoration) -> CGRect {
+        let font = markerFont(for: decoration)
+        let size = (font.pointSize * 1.05).rounded()
+        let distanceFromEdge = decoration.indent - 8 - size
+        let x = decoration.isRightToLeft ? decoration.frame.maxX - distanceFromEdge - size : decoration.frame.minX + distanceFromEdge
+        return CGRect(x: x, y: (decoration.baseline - font.capHeight / 2 - size / 2).rounded(), width: size, height: size)
     }
 
     /// "12." aligned against the text side of the indent, on the first line's baseline.
@@ -184,5 +230,48 @@ final class BlockDecorationView: UIView {
         for layer in pool.dropFirst(index) {
             layer.isHidden = true
         }
+    }
+}
+
+/// A round checkbox: an outline when empty, a tinted disc with a checkmark when ticked.
+private final class CheckboxLayer: CALayer {
+    private let circle = CAShapeLayer()
+    private let checkmark = CAShapeLayer()
+
+    override init() {
+        super.init()
+        addSublayer(circle)
+        addSublayer(checkmark)
+        checkmark.fillColor = nil
+        checkmark.lineCap = .round
+        checkmark.lineJoin = .round
+    }
+
+    override init(layer: Any) {
+        super.init(layer: layer)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(isChecked: Bool, tint: CGColor, border: CGColor, check: CGColor) {
+        let bounds = self.bounds
+        circle.frame = bounds
+        checkmark.frame = bounds
+        let lineWidth = max(1.2, bounds.width / 12)
+        circle.path = UIBezierPath(ovalIn: bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)).cgPath
+        circle.lineWidth = lineWidth
+        circle.fillColor = isChecked ? tint : nil
+        circle.strokeColor = isChecked ? tint : border
+
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: bounds.width * 0.28, y: bounds.height * 0.52))
+        path.addLine(to: CGPoint(x: bounds.width * 0.44, y: bounds.height * 0.68))
+        path.addLine(to: CGPoint(x: bounds.width * 0.73, y: bounds.height * 0.36))
+        checkmark.path = path.cgPath
+        checkmark.lineWidth = lineWidth * 1.3
+        checkmark.strokeColor = check
+        checkmark.isHidden = !isChecked
     }
 }

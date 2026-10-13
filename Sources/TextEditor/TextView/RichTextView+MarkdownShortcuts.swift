@@ -6,7 +6,7 @@
 import UIKit
 
 /// Markdown typed in a plain paragraph turns into formatting as you go:
-/// `# `, `- `, `1. `, `1) `, `> ` and ```` ``` ```` at the start of a paragraph, and `**bold**`, `__bold__`,
+/// `# `, `- `, `1. `, `1) `, `[ ] `, `[x] `, `> ` and ```` ``` ```` at the start of a paragraph (`[ ] ` also in a bulleted item), and `**bold**`, `__bold__`,
 /// `*italic*`, `_italic_`, `` `code` `` and `~~strikethrough~~` once their closing marker is typed.
 ///
 /// Each conversion is a single undo step that brings back the literal Markdown.
@@ -63,15 +63,28 @@ extension RichTextView {
         return false
     }
 
+    /// `true` for a ticked checkbox, `false` for an empty one, `nil` if `prefix` isn't one.
+    static func checkbox(forShortcut prefix: String) -> Bool? {
+        switch prefix {
+        case "[]", "[ ]": return false
+        case "[x]", "[X]": return true
+        default: return nil
+        }
+    }
+
     private func applyBlockShortcut() -> Bool {
-        guard caretBlockStyle == .paragraph else {
+        let current = caretParagraphFormat
+        guard current.block == .paragraph || current.block == .bulletList else {
             return false
         }
         let caret = selectedRange.location
         let paragraph = RichTextFormatter.paragraphRange(in: textStorage, for: selectedRange)
         let prefixRange = NSRange(location: paragraph.location, length: caret - paragraph.location)
         let prefix = (textStorage.string as NSString).substring(with: prefixRange)
-        guard let block = Self.blockStyle(forShortcut: prefix) else {
+        // "- [ ] " becomes a bulleted item as soon as "- " is typed, so a checkbox also converts one.
+        let checkbox = Self.checkbox(forShortcut: prefix)
+        let block = checkbox != nil ? BlockStyle.checklist : current.block == .paragraph ? Self.blockStyle(forShortcut: prefix) : nil
+        guard let block else {
             return false
         }
 
@@ -81,6 +94,9 @@ extension RichTextView {
         performAsOneUndoStep(actionName: "Paragraph Style") {
             replaceCharacters(in: markerRange, with: NSAttributedString(), selecting: NSRange(location: paragraph.location, length: 0), actionName: "Paragraph Style")
             setBlockStyle(block)
+            if checkbox == true {
+                toggleChecklistItems()
+            }
         }
         return true
     }

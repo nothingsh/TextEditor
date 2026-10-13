@@ -70,7 +70,8 @@ enum PastedText {
     /// Rebuilds rich text from another app, such as RTF from Notes, Pages or Xcode.
     ///
     /// Fonts are reduced to bold, italic and monospace. A paragraph that's bold and clearly larger than the
-    /// body text becomes a heading, one in an `NSTextList` becomes a list item without its marker text,
+    /// body text becomes a heading, one in an `NSTextList` becomes a list item, nested as deep as its lists,
+    /// without its marker text,
     /// and one that's entirely monospaced becomes a code line.
     static func normalized(foreign text: NSAttributedString, defaultFont: UIFont, textColor: UIColor) -> NSAttributedString {
         let fullRange = NSRange(location: 0, length: text.length)
@@ -81,8 +82,9 @@ enum PastedText {
         for (index, range) in zip(paragraphs.indices, ranges) where range.length > 0 {
             let attributes = text.attributes(at: range.location, effectiveRange: nil)
             let segments = paragraphs[index].segments
-            if let list = (attributes[.paragraphStyle] as? NSParagraphStyle)?.textLists.last {
+            if let lists = (attributes[.paragraphStyle] as? NSParagraphStyle)?.textLists, let list = lists.last {
                 paragraphs[index].block = isNumbered(list) ? .numberedList : .bulletList
+                paragraphs[index].level = lists.count - 1
                 paragraphs[index].segments = removingListMarker(from: segments)
             } else if let level = headingLevel(of: text, in: range, bodySize: bodySize) {
                 paragraphs[index].block = BlockStyle(headingLevel: level)
