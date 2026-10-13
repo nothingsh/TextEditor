@@ -263,6 +263,10 @@ extension RichTextView {
     // MARK: Decorations
 
     /// Recomputes markers, bars and backgrounds from the current TextKit 2 layout.
+    ///
+    /// A growing editor shows all of its text, so it's all laid out anyway. A scrolling one only lays out
+    /// what's near the screen, so decorations are computed for a screen above and below the visible region,
+    /// and again once scrolling leaves it.
     func updateBlockDecorations() {
         guard let layoutManager = textLayoutManager, let contentManager = layoutManager.textContentManager else {
             return
@@ -271,6 +275,21 @@ extension RichTextView {
         let contentWidth = bounds.width - textContainerInset.left - textContainerInset.right
         var decorations: [BlockDecorationView.Decoration] = []
         var numbering = ListNumbering()
+
+        var start = documentStart
+        var regionStart: CGFloat = 0
+        let regionEnd = scrollsContent ? bounds.maxY + bounds.height : .greatestFiniteMagnitude
+        var reachedRegionEnd = false
+        if scrollsContent {
+            let top = CGPoint(x: 0, y: max(0, bounds.minY - bounds.height - textContainerInset.top))
+            let fragment = layoutManager.textLayoutFragment(for: top)
+            if let location = fragment?.rangeInElement.location ?? layoutManager.textViewportLayoutController.viewportRange?.location {
+                start = location
+                let offset = contentManager.offset(from: documentStart, to: location)
+                numbering = numberingOfListItems(before: offset)
+                regionStart = offset == 0 ? 0 : (fragment?.layoutFragmentFrame.minY ?? bounds.minY) + textContainerInset.top
+            }
+        }
 
         func append(_ format: ParagraphFormat, at location: Int, frame: CGRect, baseline: CGFloat, attributes: RichTextFormatter.Attributes) {
             let isRightToLeft = RichTextFormatter.isRightToLeft(attributes)
@@ -305,13 +324,17 @@ extension RichTextView {
             ))
         }
 
-        layoutManager.enumerateTextLayoutFragments(from: documentStart, options: [.ensuresLayout]) { fragment in
+        layoutManager.enumerateTextLayoutFragments(from: start, options: [.ensuresLayout]) { fragment in
             let offset = contentManager.offset(from: documentStart, to: fragment.rangeInElement.location)
             guard offset < textStorage.length else {
                 return true
             }
-            let attributes = textStorage.attributes(at: offset, effectiveRange: nil)
             let fragmentFrame = fragment.layoutFragmentFrame
+            if fragmentFrame.minY + textContainerInset.top > regionEnd {
+                reachedRegionEnd = true
+                return false
+            }
+            let attributes = textStorage.attributes(at: offset, effectiveRange: nil)
             let frame = CGRect(
                 x: textContainerInset.left,
                 y: fragmentFrame.minY + textContainerInset.top,
@@ -327,7 +350,7 @@ extension RichTextView {
         // The empty paragraph after a trailing newline has no layout fragment; its style lives in the typing attributes.
         let isAtEmptyTrailingParagraph = selectedRange == NSRange(location: textStorage.length, length: 0)
             && (textStorage.length == 0 || textStorage.string.hasSuffix("\n"))
-        if isAtEmptyTrailingParagraph {
+        if isAtEmptyTrailingParagraph && !reachedRegionEnd {
             let caret = caretRect(for: endOfDocument)
             let font = RichTextFormatter.font(in: typingAttributes, defaultFont: defaultFont)
             let frame = CGRect(x: textContainerInset.left, y: caret.minY, width: contentWidth, height: caret.height)
@@ -335,10 +358,31 @@ extension RichTextView {
         }
 
         decorationView.decorations = decorations
+        decoratedRegion = scrollsContent ? regionStart...(reachedRegionEnd ? regionEnd : .greatestFiniteMagnitude) : nil
         // Decorations can land below the current bounds until SwiftUI grows the view. The view has no
         // backing store of its own, so covering the whole document costs nothing.
         let height = max(bounds.height, contentSize.height, decorations.map(\.frame.maxY).max() ?? 0)
         decorationView.frame = CGRect(x: 0, y: 0, width: bounds.width, height: height)
         updateVisibleDecorationRect()
+    }
+
+    /// Numbering as it stands just before the paragraph at `location`, counting back to the start of its list.
+    private func numberingOfListItems(before location: Int) -> ListNumbering {
+        let string = textStorage.string as NSString
+        var starts: [Int] = []
+        var cursor = location
+        while cursor > 0 {
+            let previous = string.paragraphRange(for: NSRange(location: cursor - 1, length: 0))
+            guard RichTextFormatter.blockStyle(of: textStorage, at: previous.location).isList else {
+                break
+            }
+            starts.append(previous.location)
+            cursor = previous.location
+        }
+        var numbering = ListNumbering()
+        for start in starts.reversed() {
+            _ = numbering.next(RichTextFormatter.paragraphFormat(of: textStorage, at: start))
+        }
+        return numbering
     }
 }

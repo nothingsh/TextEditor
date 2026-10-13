@@ -7,7 +7,8 @@ import SwiftUI
 
 /// A rich text editor with a formatting toolbar above the keyboard.
 ///
-/// The editor grows with its content; place it in a `ScrollView` for long documents.
+/// By default the editor grows with its content; place it in a `ScrollView`. For long documents,
+/// use ``SwiftUI/View/scrollsContent(_:)`` so the editor scrolls itself and only lays out the text on screen.
 public struct RichTextEditor: View {
     @Binding private var text: NSAttributedString
     @StateObject private var internalContext = RichTextContext()
@@ -73,11 +74,31 @@ public extension View {
     }
 }
 
+public extension View {
+    /// Makes ``RichTextEditor`` scroll its own content and fill the space it's offered, instead of growing
+    /// to fit its content inside a `ScrollView`. Off by default.
+    ///
+    /// Use it for long documents: a growing editor lays out the whole document on every edit,
+    /// while a scrolling one only lays out what's on screen. Don't put a scrolling editor in a `ScrollView`.
+    func scrollsContent(_ isEnabled: Bool = true) -> some View {
+        environment(\.scrollsEditorContent, isEnabled)
+    }
+}
+
 private struct MarkdownShortcutsKey: EnvironmentKey {
     static let defaultValue = true
 }
 
+private struct ScrollsContentKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
+    var scrollsEditorContent: Bool {
+        get { self[ScrollsContentKey.self] }
+        set { self[ScrollsContentKey.self] = newValue }
+    }
+
     var isMarkdownShortcutsEnabled: Bool {
         get { self[MarkdownShortcutsKey.self] }
         set { self[MarkdownShortcutsKey.self] = newValue }
@@ -94,6 +115,7 @@ struct RichTextViewRepresentable: UIViewRepresentable {
         let textView = RichTextView()
         textView.delegate = context.coordinator
         textView.placeholder = placeholder
+        textView.scrollsContent = context.environment.scrollsEditorContent
         textView.setContent(text)
         context.coordinator.lastSyncedText = text
         connect(textView)
@@ -106,6 +128,7 @@ struct RichTextViewRepresentable: UIViewRepresentable {
         coordinator.parent = self
         textView.placeholder = placeholder
         textView.isMarkdownShortcutsEnabled = context.environment.isMarkdownShortcutsEnabled
+        textView.scrollsContent = context.environment.scrollsEditorContent
 
         if editorContext.textView !== textView {
             connect(textView)
@@ -128,6 +151,13 @@ struct RichTextViewRepresentable: UIViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, uiView textView: RichTextView, context: Context) -> CGSize? {
         guard let width = proposal.width, width > 0, width.isFinite else {
             return nil
+        }
+        if textView.scrollsContent {
+            // Fill the offered space; measuring the content would lay out the whole document.
+            guard let height = proposal.height, height.isFinite else {
+                return nil
+            }
+            return CGSize(width: width, height: height)
         }
         let fittingSize = textView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
         return CGSize(width: width, height: fittingSize.height)
@@ -199,7 +229,9 @@ struct RichTextViewRepresentable: UIViewRepresentable {
             let snapshot = NSAttributedString(attributedString: textView.textStorage)
             lastSyncedText = snapshot
             parent.text = snapshot
-            textView.invalidateIntrinsicContentSize()
+            if !((textView as? RichTextView)?.scrollsContent ?? false) {
+                textView.invalidateIntrinsicContentSize()
+            }
             parent.editorContext.refresh()
         }
 

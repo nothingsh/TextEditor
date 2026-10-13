@@ -26,6 +26,19 @@ final class RichTextView: UITextView {
     /// Whether typed Markdown such as `# ` or `**bold**` turns into formatting.
     var isMarkdownShortcutsEnabled = true
 
+    /// Whether the view scrolls its own content, rather than growing to fit it inside an enclosing scroll view.
+    var scrollsContent = false {
+        didSet {
+            guard scrollsContent != oldValue else {
+                return
+            }
+            isScrollEnabled = scrollsContent
+            alwaysBounceVertical = scrollsContent
+            keyboardDismissMode = scrollsContent ? .interactive : .none
+            setNeedsBlockDecorations()
+        }
+    }
+
     /// Undo steps kept in memory; each formatting step holds a copy of the text it changed.
     static let undoLevels = 100
 
@@ -146,6 +159,10 @@ final class RichTextView: UITextView {
         if bounds.width != lastLayoutSize.width {
             fitAttachmentsToWidth()
         }
+        if scrollsContent && !decoratedRegionCoversVisibleRegion {
+            // Scrolling also lays out; decorations only cover a few screens around what's visible.
+            needsBlockDecorations = true
+        }
         if sizeChanged || needsBlockDecorations {
             lastLayoutSize = bounds.size
             needsBlockDecorations = false
@@ -160,6 +177,17 @@ final class RichTextView: UITextView {
 
     private var scrollObservation: NSKeyValueObservation?
 
+    /// The vertical span, in this view's coordinates, that the current decorations were computed for;
+    /// `nil` when they cover the whole document.
+    var decoratedRegion: ClosedRange<CGFloat>?
+
+    private var decoratedRegionCoversVisibleRegion: Bool {
+        guard let region = decoratedRegion else {
+            return true
+        }
+        return region.lowerBound <= max(0, bounds.minY) && region.upperBound >= min(bounds.maxY, contentSize.height)
+    }
+
     /// Decorations only get layers near what's on screen, so follow the enclosing scroll view.
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -172,6 +200,10 @@ final class RichTextView: UITextView {
     }
 
     func updateVisibleDecorationRect() {
+        if scrollsContent {
+            decorationView.visibleRect = convert(bounds, to: decorationView)
+            return
+        }
         guard window != nil, let scrollView = enclosingScrollView else {
             decorationView.visibleRect = nil
             return

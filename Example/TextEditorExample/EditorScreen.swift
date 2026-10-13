@@ -11,13 +11,12 @@ struct EditorScreen: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                RichTextEditor(text: $draft.text, context: context, placeholder: "Start writing…")
-                    .markdownShortcuts(isMarkdownShortcutsEnabled)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-            }
-            .scrollDismissesKeyboard(.interactively)
+            // The editor scrolls itself, so long notes only lay out what's on screen.
+            RichTextEditor(text: $draft.text, context: context, placeholder: "Start writing…")
+            .markdownShortcuts(isMarkdownShortcutsEnabled)
+            .scrollsContent()
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
             .task {
                 // Used when capturing screenshots for the README.
                 if ProcessInfo.processInfo.arguments.contains("-focusEditor") {
