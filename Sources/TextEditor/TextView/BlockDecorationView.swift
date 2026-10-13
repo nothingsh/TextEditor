@@ -28,6 +28,8 @@ final class BlockDecorationView: UIView {
         /// Baseline of the paragraph's first line, used to align markers.
         var baseline: CGFloat
         var indent: CGFloat
+        /// Right-to-left paragraphs are indented, and so decorated, on the right.
+        var isRightToLeft: Bool
         var font: UIFont
         var color: UIColor
     }
@@ -105,7 +107,8 @@ final class BlockDecorationView: UIView {
                 backgroundCount += 1
             case .quoteBar:
                 let layer = reusableLayer(at: backgroundCount, in: &backgroundLayers, make: CALayer.init)
-                layer.frame = CGRect(x: decoration.frame.minX, y: decoration.frame.minY, width: 3, height: decoration.frame.height)
+                let x = decoration.isRightToLeft ? decoration.frame.maxX - 3 : decoration.frame.minX
+                layer.frame = CGRect(x: x, y: decoration.frame.minY, width: 3, height: decoration.frame.height)
                 layer.cornerRadius = 1.5
                 layer.backgroundColor = resolved(.tertiaryLabel)
                 backgroundCount += 1
@@ -125,12 +128,13 @@ final class BlockDecorationView: UIView {
         hideLayers(in: numberLayers, from: numberCount)
     }
 
-    /// A filled dot, right-aligned in the indent and centred on the x-height.
+    /// A filled dot at the text side of the indent, centred on the x-height.
     private func configureBullet(_ layer: CAShapeLayer, for decoration: Decoration) {
         let font = markerFont(for: decoration)
         let diameter = (font.pointSize * 0.3).rounded()
+        let distanceFromEdge = decoration.indent - 8 - diameter / 2
         let center = CGPoint(
-            x: decoration.frame.minX + decoration.indent - 8 - diameter / 2,
+            x: decoration.isRightToLeft ? decoration.frame.maxX - distanceFromEdge : decoration.frame.minX + distanceFromEdge,
             y: decoration.baseline - font.xHeight / 2
         )
         layer.frame = CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter)
@@ -138,23 +142,22 @@ final class BlockDecorationView: UIView {
         layer.fillColor = resolved(decoration.color)
     }
 
-    /// "12." right-aligned in the indent, on the first line's baseline.
+    /// "12." aligned against the text side of the indent, on the first line's baseline.
     private func configureNumber(_ layer: CATextLayer, ordinal: Int, for decoration: Decoration) {
         let font = markerFont(for: decoration)
-        // Wide enough for "100."; the layer may extend left of the text, which is fine for an unclipped sublayer.
+        // Wide enough for "100."; the layer may extend past the text's edge, which is fine for an unclipped sublayer.
         let width: CGFloat = 60
-        layer.frame = CGRect(
-            x: decoration.frame.minX + decoration.indent - 6 - width,
-            y: decoration.baseline - font.ascender,
-            width: width,
-            height: font.lineHeight
-        )
+        let textEdgeGap = decoration.indent - 6
+        let x = decoration.isRightToLeft
+            ? decoration.frame.maxX - textEdgeGap
+            : decoration.frame.minX + textEdgeGap - width
+        layer.frame = CGRect(x: x, y: decoration.baseline - font.ascender, width: width, height: font.lineHeight)
         layer.string = "\(ordinal)."
         // UIFont is toll-free bridged to CTFont; creating one by name would lose the system font.
         layer.font = font
         layer.fontSize = font.pointSize
         layer.foregroundColor = resolved(decoration.color)
-        layer.alignmentMode = .right
+        layer.alignmentMode = decoration.isRightToLeft ? .left : .right
         layer.contentsScale = traitCollection.displayScale
     }
 

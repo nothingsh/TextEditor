@@ -132,6 +132,19 @@ final class SerializationTests: XCTestCase {
         XCTAssertEqual(paragraphs[6], "still text")
     }
 
+    func testHTMLMarksRightToLeftBlocks() {
+        let text = RichTextSerializer.attributedString(markdown: "# عنوان\n\nفقرة عربية\n\n- عنصر\n- item\n\n> اقتباس\n\nEnglish")
+        let html = RichTextSerializer.html(from: text)
+
+        XCTAssertTrue(html.contains("<h1 dir=\"rtl\">عنوان</h1>"))
+        XCTAssertTrue(html.contains("<p dir=\"rtl\">فقرة عربية</p>"))
+        XCTAssertTrue(html.contains("<li dir=\"rtl\">عنصر</li>\n<li>item</li>"))
+        XCTAssertTrue(html.contains("<blockquote>\n<p dir=\"rtl\">اقتباس</p>"))
+        XCTAssertTrue(html.contains("<p>English</p>"))
+        // Direction is derived from text, so reading the HTML back loses nothing.
+        XCTAssertEqual(RichTextSerializer.attributedString(html: html).string, text.string)
+    }
+
     // MARK: Link Safety
 
     func testUnsafeLinkSchemesAreDroppedOnImportAndExport() {

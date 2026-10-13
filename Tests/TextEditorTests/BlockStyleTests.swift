@@ -181,6 +181,55 @@ final class BlockStyleTests: XCTestCase {
         XCTAssertNil(decorationView.layer.contents)
     }
 
+    // MARK: Right-to-Left
+
+    private func writingDirection(at location: Int) -> NSWritingDirection? {
+        (textView.textStorage.attribute(.paragraphStyle, at: location, effectiveRange: nil) as? NSParagraphStyle)?.baseWritingDirection
+    }
+
+    func testWritingDirectionComesFromFirstStrongCharacter() {
+        XCTAssertEqual(RichTextFormatter.writingDirection(of: "Hello"), .leftToRight)
+        XCTAssertEqual(RichTextFormatter.writingDirection(of: "عنصر"), .rightToLeft)
+        XCTAssertEqual(RichTextFormatter.writingDirection(of: "12. שלום"), .rightToLeft)
+        XCTAssertNil(RichTextFormatter.writingDirection(of: "123 !?"))
+        XCTAssertNil(RichTextFormatter.writingDirection(of: ""))
+    }
+
+    /// Each indented paragraph gets its text's direction, so the indent and marker land on the text's side
+    /// whatever the system direction is.
+    func testListParagraphsGetTheirTextsDirection() {
+        textView.setContent(RichTextSerializer.attributedString(markdown: "- عنصر أول\n- First item\n\nPlain"))
+
+        XCTAssertEqual(writingDirection(at: 0), .rightToLeft)
+        XCTAssertEqual(writingDirection(at: 11), .leftToRight)
+        let plainLocation = (textView.textStorage.string as NSString).range(of: "Plain").location
+        XCTAssertEqual(writingDirection(at: plainLocation), .natural, "unindented paragraphs keep following their text")
+        XCTAssertEqual(decorations.map(\.isRightToLeft), [true, false])
+    }
+
+    func testRightToLeftMarkersAreDrawnOnTheRight() throws {
+        textView.setContent(RichTextSerializer.attributedString(markdown: "- عنصر\n- item"))
+        _ = decorations
+        textView.decorationView.layoutIfNeeded()
+
+        let bullets = (textView.decorationView.layer.sublayers ?? []).compactMap { $0 as? CAShapeLayer }.filter { !$0.isHidden }
+        let positions = bullets.sorted { $0.frame.minY < $1.frame.minY }.map(\.frame.midX)
+        XCTAssertEqual(positions.count, 2)
+        XCTAssertGreaterThan(try XCTUnwrap(positions.first), textView.bounds.width - BlockStyle.bulletList.indent)
+        XCTAssertLessThan(try XCTUnwrap(positions.last), BlockStyle.bulletList.indent)
+    }
+
+    func testDirectionFollowsTypedText() {
+        textView.setContent(RichTextSerializer.attributedString(markdown: "- item"))
+        textView.selectedRange = NSRange(location: textView.textStorage.length, length: 0)
+        textView.insertText("\n")
+        textView.insertText("ع")
+
+        XCTAssertEqual(block(at: 5), .bulletList)
+        XCTAssertEqual(writingDirection(at: 5), .rightToLeft)
+        XCTAssertEqual(writingDirection(at: 0), .leftToRight)
+    }
+
     // MARK: Links
 
     func testLinkSelectionThenEditWholeLinkFromCaret() {

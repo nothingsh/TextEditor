@@ -28,10 +28,10 @@ enum HTMLWriter {
                 continue
             case .heading1, .heading2, .heading3:
                 let tag = "h\(paragraph.block.headingLevel ?? 1)"
-                lines.append("<\(tag)\(alignmentAttribute(paragraph))>\(inlineHTML(paragraph.segments, isHeading: true))</\(tag)>")
+                lines.append("<\(tag)\(blockAttributes(paragraph))>\(inlineHTML(paragraph.segments, isHeading: true))</\(tag)>")
             case .paragraph:
                 let content = inlineHTML(paragraph.segments, isHeading: false)
-                lines.append("<p\(alignmentAttribute(paragraph))>\(content.isEmpty ? "<br>" : content)</p>")
+                lines.append("<p\(blockAttributes(paragraph))>\(content.isEmpty ? "<br>" : content)</p>")
             }
             index += 1
         }
@@ -44,13 +44,21 @@ enum HTMLWriter {
             let code = group.map { escaped($0.segments.map(\.text).joined()) }.joined(separator: "\n")
             return "<pre><code>\(code)</code></pre>"
         case .quote:
-            let items = group.map { "<p\(alignmentAttribute($0))>\(inlineHTML($0.segments, isHeading: false))</p>" }
+            let items = group.map { "<p\(blockAttributes($0))>\(inlineHTML($0.segments, isHeading: false))</p>" }
             return "<blockquote>\n" + items.joined(separator: "\n") + "\n</blockquote>"
         default:
             let tag = block == .numberedList ? "ol" : "ul"
-            let items = group.map { "<li\(alignmentAttribute($0))>\(inlineHTML($0.segments, isHeading: false))</li>" }
+            let items = group.map { "<li\(blockAttributes($0))>\(inlineHTML($0.segments, isHeading: false))</li>" }
             return "<\(tag)>\n" + items.joined(separator: "\n") + "\n</\(tag)>"
         }
+    }
+
+    /// `dir="rtl"` for right-to-left text, decided by its first strong character as in the editor,
+    /// so lists and quotes keep their markers and indents on the text's side; then any alignment.
+    private static func blockAttributes(_ paragraph: Paragraph) -> String {
+        let text = paragraph.segments.map(\.text).joined()
+        let direction = RichTextFormatter.writingDirection(of: text) == .rightToLeft ? " dir=\"rtl\"" : ""
+        return direction + alignmentAttribute(paragraph)
     }
 
     private static func alignmentAttribute(_ paragraph: Paragraph) -> String {
