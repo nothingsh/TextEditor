@@ -65,7 +65,7 @@ enum HTMLWriter {
     static func inlineHTML(_ segments: [Segment], isHeading: Bool) -> String {
         segments.map { segment in
             if let image = segment.image {
-                return "<img src=\"\(ImageAttachments.dataURI(for: image))\" alt=\"\">"
+                return "<img src=\"\(escaped(ImageAttachments.dataURI(for: image)))\" alt=\"\">"
             }
             var html = escaped(segment.text).replacingOccurrences(of: "\u{2028}", with: "<br>")
             let styles = segment.styles
