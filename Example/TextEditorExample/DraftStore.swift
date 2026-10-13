@@ -14,7 +14,9 @@ final class DraftStore: ObservableObject {
     private var saveTask: Task<Void, Never>?
 
     init() {
-        if let data = try? Data(contentsOf: fileURL),
+        // UI tests start from the sample document.
+        if !ProcessInfo.processInfo.arguments.contains("-sampleDocument"),
+           let data = try? Data(contentsOf: fileURL),
            let saved = try? RichTextSerializer.attributedString(archivedData: data) {
             text = saved
         } else {

@@ -23,3 +23,20 @@ targets:
       MARKETING_VERSION: "2.0"
       CURRENT_PROJECT_VERSION: "1"
       CODE_SIGN_STYLE: Automatic
+  TextEditorExampleUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [TextEditorExampleUITests]
+    dependencies:
+      - target: TextEditorExample
+    settings:
+      GENERATE_INFOPLIST_FILE: YES
+      CODE_SIGN_STYLE: Automatic
+schemes:
+  TextEditorExample:
+    build:
+      targets:
+        TextEditorExample: all
+    test:
+      targets:
+        - TextEditorExampleUITests

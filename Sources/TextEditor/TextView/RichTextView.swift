@@ -18,6 +18,7 @@ final class RichTextView: UITextView {
     let placeholderLabel = UILabel()
     let decorationView = BlockDecorationView()
     private(set) lazy var checklistTapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleChecklistTap(_:)))
+    private lazy var checklistTapFilter = ChecklistTapFilter(textView: self)
 
     /// UITextView drops custom attributes whenever it recomputes typing attributes. A paragraph format chosen
     /// for an empty paragraph exists nowhere in the text yet, so it's remembered here with its caret location.
@@ -91,6 +92,7 @@ final class RichTextView: UITextView {
         setUpTextView()
         setUpPlaceholder()
         insertSubview(decorationView, at: 0)
+        checklistTapRecognizer.delegate = checklistTapFilter
         addGestureRecognizer(checklistTapRecognizer)
         observeChanges()
     }
@@ -523,5 +525,22 @@ private extension TextStyle {
         case .strikethrough: return "Strikethrough"
         case .code: return "Code"
         }
+    }
+}
+
+/// Lets the checkbox recognizer see only touches that start on a checkbox. A tap recognizer that merely
+/// watches other touches keeps a tap on the text from bringing up the keyboard.
+private final class ChecklistTapFilter: NSObject, UIGestureRecognizerDelegate {
+    weak var textView: RichTextView?
+
+    init(textView: RichTextView) {
+        self.textView = textView
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard let textView else {
+            return false
+        }
+        return textView.checklistItem(at: touch.location(in: textView)) != nil
     }
 }

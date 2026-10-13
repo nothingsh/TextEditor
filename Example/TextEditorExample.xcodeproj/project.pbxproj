@@ -13,15 +13,28 @@
 		B204ECCF8E8AF9FF9884ADBB /* EditorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E1DDC771C0DC0FD69C4B51B /* EditorScreen.swift */; };
 		D7D495F9EF32427ED67C68B7 /* ExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B0361D0610FB12FC39FAFF /* ExportView.swift */; };
 		F6B3A96B48FC6E07563D6332 /* DraftStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 570BEB787F0F9C73EDC920E0 /* DraftStore.swift */; };
+		FEE46887DEFB05C5C1E71C15 /* EditorUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E211DAF2D0662A3D4193191B /* EditorUITests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		34F026F030802394A6BDB391 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 32B0749001DF7E09830EC6B4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F576F9D317BBF89C0D2BE0A5;
+			remoteInfo = TextEditorExample;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		21122089A205F6D467947B93 /* TextEditorExample.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TextEditorExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2E1DDC771C0DC0FD69C4B51B /* EditorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorScreen.swift; sourceTree = "<group>"; };
+		3E2F50EC8D7E4B6F06B1BCD1 /* TextEditorExampleUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TextEditorExampleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3F129C6AF1D1824725EE4AB5 /* SampleDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleDocument.swift; sourceTree = "<group>"; };
 		570BEB787F0F9C73EDC920E0 /* DraftStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraftStore.swift; sourceTree = "<group>"; };
 		99B0361D0610FB12FC39FAFF /* ExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportView.swift; sourceTree = "<group>"; };
 		CC7FA96BCDC2236260C96A0A /* TextEditor */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TextEditor; path = ..; sourceTree = SOURCE_ROOT; };
+		E211DAF2D0662A3D4193191B /* EditorUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorUITests.swift; sourceTree = "<group>"; };
 		E80D2B65122D4258E06E3233 /* ExampleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExampleApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -50,6 +63,7 @@
 			children = (
 				151C1DBD1E816B63D59FB18C /* Packages */,
 				888A25F3010D8CD53E908FF5 /* TextEditorExample */,
+				F6EBA747E8D8F0659EE49914 /* TextEditorExampleUITests */,
 				B4543331083C1A2838C2887B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -70,8 +84,17 @@
 			isa = PBXGroup;
 			children = (
 				21122089A205F6D467947B93 /* TextEditorExample.app */,
+				3E2F50EC8D7E4B6F06B1BCD1 /* TextEditorExampleUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		F6EBA747E8D8F0659EE49914 /* TextEditorExampleUITests */ = {
+			isa = PBXGroup;
+			children = (
+				E211DAF2D0662A3D4193191B /* EditorUITests.swift */,
+			);
+			path = TextEditorExampleUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -96,6 +119,24 @@
 			productReference = 21122089A205F6D467947B93 /* TextEditorExample.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F6BE266E406CED62F6660C9C /* TextEditorExampleUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 83EABFCCD1EEC0B1B770D3BD /* Build configuration list for PBXNativeTarget "TextEditorExampleUITests" */;
+			buildPhases = (
+				C45BBAF40E3A53A887483595 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4F142C74DD23966594618D51 /* PBXTargetDependency */,
+			);
+			name = TextEditorExampleUITests;
+			packageProductDependencies = (
+			);
+			productName = TextEditorExampleUITests;
+			productReference = 3E2F50EC8D7E4B6F06B1BCD1 /* TextEditorExampleUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -107,6 +148,10 @@
 				TargetAttributes = {
 					F576F9D317BBF89C0D2BE0A5 = {
 						ProvisioningStyle = Automatic;
+					};
+					F6BE266E406CED62F6660C9C = {
+						ProvisioningStyle = Automatic;
+						TestTargetID = F576F9D317BBF89C0D2BE0A5;
 					};
 				};
 			};
@@ -128,6 +173,7 @@
 			projectRoot = "";
 			targets = (
 				F576F9D317BBF89C0D2BE0A5 /* TextEditorExample */,
+				F6BE266E406CED62F6660C9C /* TextEditorExampleUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -145,7 +191,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C45BBAF40E3A53A887483595 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FEE46887DEFB05C5C1E71C15 /* EditorUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4F142C74DD23966594618D51 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F576F9D317BBF89C0D2BE0A5 /* TextEditorExample */;
+			targetProxy = 34F026F030802394A6BDB391 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		6F7A04194CA6B816C86FC646 /* Release */ = {
@@ -233,6 +295,24 @@
 			};
 			name = Debug;
 		};
+		AFDB72B0A327AB39E9C3581E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.texteditor.TextEditorExampleUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = TextEditorExample;
+			};
+			name = Debug;
+		};
 		C3556C0A087769C9B20DF559 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -289,6 +369,24 @@
 			};
 			name = Release;
 		};
+		DBAA0F7C59F1E6F1EAF0A394 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.texteditor.TextEditorExampleUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = TextEditorExample;
+			};
+			name = Release;
+		};
 		FB48C2562F3258F142AB414C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -319,6 +417,15 @@
 			buildConfigurations = (
 				FB48C2562F3258F142AB414C /* Debug */,
 				6F7A04194CA6B816C86FC646 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		83EABFCCD1EEC0B1B770D3BD /* Build configuration list for PBXNativeTarget "TextEditorExampleUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AFDB72B0A327AB39E9C3581E /* Debug */,
+				DBAA0F7C59F1E6F1EAF0A394 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
