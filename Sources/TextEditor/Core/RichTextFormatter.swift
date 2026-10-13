@@ -11,6 +11,8 @@ public enum TextStyle: CaseIterable, Hashable {
     case italic
     case underline
     case strikethrough
+    /// Inline code, shown in a monospaced font.
+    case code
 }
 
 /// A snapshot of the formatting at the current selection, used to drive toolbar state.
@@ -19,6 +21,8 @@ struct FormattingState: Equatable {
     var fontSize: CGFloat
     var textColor: UIColor
     var alignment: NSTextAlignment
+    var blockStyle: BlockStyle
+    var link: URL?
 }
 
 /// Pure functions that read and write rich text attributes.
@@ -40,6 +44,8 @@ enum RichTextFormatter {
             return isLineStyleSet(attributes[.underlineStyle])
         case .strikethrough:
             return isLineStyleSet(attributes[.strikethroughStyle])
+        case .code:
+            return font(in: attributes, defaultFont: defaultFont).hasTrait(.traitMonoSpace)
         }
     }
 
@@ -74,12 +80,38 @@ enum RichTextFormatter {
                 ? isStyle(style, activeIn: text, range: selection, defaultFont: defaultFont)
                 : isStyle(style, activeIn: attributes, defaultFont: defaultFont)
         }
+        // Block style is a paragraph property: read it from the caret's paragraph, which may be
+        // the empty trailing paragraph that only exists in the typing attributes.
+        let paragraph = paragraphRange(in: text, for: selection)
+        let isEmptyParagraph = (text.string as NSString).substring(with: paragraph).trimmingCharacters(in: .newlines).isEmpty
+        let blockStyle = isEmptyParagraph && selection.length == 0
+            ? self.blockStyle(in: typingAttributes)
+            : commonBlockStyle(in: text, range: paragraph) ?? .paragraph
         return FormattingState(
             activeStyles: Set(activeStyles),
             fontSize: font(in: attributes, defaultFont: defaultFont).pointSize,
             textColor: attributes[.foregroundColor] as? UIColor ?? defaultTextColor,
-            alignment: (attributes[.paragraphStyle] as? NSParagraphStyle)?.alignment ?? .natural
+            alignment: (attributes[.paragraphStyle] as? NSParagraphStyle)?.alignment ?? .natural,
+            blockStyle: blockStyle,
+            link: link(in: text, at: selection)
         )
+    }
+
+    /// The link under the caret or at the start of the selection.
+    static func link(in text: NSAttributedString, at selection: NSRange) -> URL? {
+        let location = selection.length > 0 ? selection.location : selection.location - 1
+        guard location >= 0, location < text.length else {
+            return nil
+        }
+        return linkURL(text.attribute(.link, at: location, effectiveRange: nil))
+    }
+
+    /// `.link` may hold a `URL` or a `String`.
+    static func linkURL(_ value: Any?) -> URL? {
+        if let url = value as? URL {
+            return url
+        }
+        return (value as? String).flatMap(URL.init(string:))
     }
 
     // MARK: Writing Attributes
@@ -95,6 +127,12 @@ enum RichTextFormatter {
             result[.underlineStyle] = enabled ? NSUnderlineStyle.single.rawValue : nil
         case .strikethrough:
             result[.strikethroughStyle] = enabled ? NSUnderlineStyle.single.rawValue : nil
+        case .code:
+            let font = font(in: attributes, defaultFont: defaultFont)
+            let isBold = font.hasTrait(.traitBold)
+            result[.font] = enabled
+                ? UIFont.monospacedSystemFont(ofSize: font.pointSize, weight: isBold ? .bold : .regular)
+                : defaultFont.withSize(font.pointSize).withTrait(.traitBold, enabled: isBold)
         }
         return result
     }

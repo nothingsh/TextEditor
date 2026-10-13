@@ -16,6 +16,11 @@ final class RichTextView: UITextView {
     weak var context: RichTextContext?
 
     let placeholderLabel = UILabel()
+    let decorationView = BlockDecorationView()
+
+    /// UITextView drops custom attributes whenever it recomputes typing attributes. A block style chosen
+    /// for an empty paragraph exists nowhere in the text yet, so it's remembered here with its caret location.
+    var pendingBlockStyle: (location: Int, style: BlockStyle)?
 
     /// Owned by the editor so its history isn't shared with other text fields in the window.
     private let editorUndoManager = UndoManager()
@@ -43,13 +48,17 @@ final class RichTextView: UITextView {
     }
 
     var formattingState: FormattingState {
-        RichTextFormatter.state(
+        var state = RichTextFormatter.state(
             of: textStorage,
             selection: selectedRange,
             typingAttributes: typingAttributes,
             defaultFont: defaultFont,
             defaultTextColor: defaultTextColor
         )
+        if selectedRange.length == 0 && isCaretInEmptyParagraph {
+            state.blockStyle = caretBlockStyle
+        }
+        return state
     }
 
     init(defaultFont: UIFont = .preferredFont(forTextStyle: .body), defaultTextColor: UIColor = .label) {
@@ -59,6 +68,7 @@ final class RichTextView: UITextView {
 
         setUpTextView()
         setUpPlaceholder()
+        insertSubview(decorationView, at: 0)
         observeChanges()
     }
 
@@ -72,6 +82,8 @@ final class RichTextView: UITextView {
         textContainerInset = .zero
         textContainer.lineFragmentPadding = 0
         typingAttributes = defaultAttributes
+        // Enables the B/I/U edit menu and ⌘B/⌘I/⌘U, routed to our own undoable commands below.
+        allowsEditingTextAttributes = true
         setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
 
@@ -101,6 +113,32 @@ final class RichTextView: UITextView {
 
     @objc private func textDidChange() {
         updatePlaceholderVisibility()
+        updateBlockDecorations()
+    }
+
+    private var lastLayoutSize: CGSize = .zero
+
+    /// TextKit 2 only fully lays out text inside the view, so decorations are recomputed once SwiftUI resizes it.
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if bounds.size != lastLayoutSize {
+            lastLayoutSize = bounds.size
+            updateBlockDecorations()
+        }
+    }
+
+    // MARK: Standard Edit Actions
+
+    override func toggleBoldface(_ sender: Any?) {
+        toggle(.bold)
+    }
+
+    override func toggleItalics(_ sender: Any?) {
+        toggle(.italic)
+    }
+
+    override func toggleUnderline(_ sender: Any?) {
+        toggle(.underline)
     }
 
     @objc private func undoStateDidChange() {
@@ -119,10 +157,12 @@ final class RichTextView: UITextView {
         let caret = min(selectedRange.location, text.length)
         attributedText = RichTextFormatter.applyingDefaults(to: text, font: defaultFont, textColor: defaultTextColor)
         selectedRange = NSRange(location: caret, length: 0)
+        pendingBlockStyle = nil
         if text.length == 0 {
             typingAttributes = defaultAttributes
         }
         editorUndoManager.removeAllActions()
+        updateBlockDecorations()
     }
 
     // MARK: Formatting
@@ -198,7 +238,7 @@ final class RichTextView: UITextView {
     // MARK: Undoable Editing
 
     /// Applies an attribute-only edit to `range` as a single undoable step, keeping the selection.
-    private func editAttributes(in range: NSRange, actionName: String, _ edit: (NSMutableAttributedString, NSRange) -> Void) {
+    func editAttributes(in range: NSRange, actionName: String, _ edit: (NSMutableAttributedString, NSRange) -> Void) {
         let edited = NSMutableAttributedString(attributedString: textStorage.attributedSubstring(from: range))
         edit(edited, NSRange(location: 0, length: edited.length))
         replace(range, with: edited, selecting: selectedRange, actionName: actionName)
@@ -226,6 +266,7 @@ final class RichTextView: UITextView {
 
         // Programmatic storage edits don't reach the delegate on their own.
         updatePlaceholderVisibility()
+        updateBlockDecorations()
         delegate?.textViewDidChange?(self)
         context?.refresh()
     }
@@ -238,6 +279,7 @@ private extension TextStyle {
         case .italic: return "Italic"
         case .underline: return "Underline"
         case .strikethrough: return "Strikethrough"
+        case .code: return "Code"
         }
     }
 }

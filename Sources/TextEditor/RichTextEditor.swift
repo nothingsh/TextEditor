@@ -14,7 +14,7 @@ public struct RichTextEditor: View {
 
     private let externalContext: RichTextContext?
     private let placeholder: String
-    private let sections: [EditorSection]
+    private let toolbar: RichTextToolbarConfiguration?
 
     /// - Parameters:
     ///   - text: The document. Updated on every edit.
@@ -27,10 +27,26 @@ public struct RichTextEditor: View {
         placeholder: String = "Type ...",
         toolbar sections: [EditorSection] = EditorSection.allCases
     ) {
+        self.init(
+            text: text,
+            context: context,
+            placeholder: placeholder,
+            toolbar: sections.isEmpty ? nil : RichTextToolbarConfiguration(sections: sections)
+        )
+    }
+
+    /// - Parameters:
+    ///   - toolbar: The keyboard toolbar's configuration, or `nil` for no keyboard toolbar.
+    public init(
+        text: Binding<NSAttributedString>,
+        context: RichTextContext? = nil,
+        placeholder: String = "Type ...",
+        toolbar configuration: RichTextToolbarConfiguration?
+    ) {
         self._text = text
         self.externalContext = context
         self.placeholder = placeholder
-        self.sections = sections
+        self.toolbar = configuration
     }
 
     public var body: some View {
@@ -38,7 +54,7 @@ public struct RichTextEditor: View {
             text: $text,
             editorContext: externalContext ?? internalContext,
             placeholder: placeholder,
-            sections: sections
+            toolbar: toolbar
         )
     }
 }
@@ -47,7 +63,7 @@ struct RichTextViewRepresentable: UIViewRepresentable {
     @Binding var text: NSAttributedString
     let editorContext: RichTextContext
     let placeholder: String
-    let sections: [EditorSection]
+    let toolbar: RichTextToolbarConfiguration?
 
     func makeUIView(context: Context) -> RichTextView {
         let textView = RichTextView()
@@ -55,7 +71,8 @@ struct RichTextViewRepresentable: UIViewRepresentable {
         textView.placeholder = placeholder
         textView.setContent(text)
         context.coordinator.lastSyncedText = text
-        connect(textView, coordinator: context.coordinator)
+        connect(textView)
+        updateToolbar(of: textView)
         return textView
     }
 
@@ -64,9 +81,10 @@ struct RichTextViewRepresentable: UIViewRepresentable {
         coordinator.parent = self
         textView.placeholder = placeholder
 
-        if editorContext.textView !== textView || coordinator.sections != sections {
-            connect(textView, coordinator: coordinator)
+        if editorContext.textView !== textView {
+            connect(textView)
         }
+        updateToolbar(of: textView)
 
         // Skip our own echo: after an edit the binding holds the exact snapshot we pushed.
         guard text !== coordinator.lastSyncedText else {
@@ -93,18 +111,31 @@ struct RichTextViewRepresentable: UIViewRepresentable {
         Coordinator(self)
     }
 
-    private func connect(_ textView: RichTextView, coordinator: Coordinator) {
+    private func connect(_ textView: RichTextView) {
         textView.context = editorContext
         editorContext.textView = textView
+        refreshAfterViewUpdate()
+    }
 
-        coordinator.sections = sections
-        textView.inputAccessoryView = sections.isEmpty
-            ? nil
-            : KeyboardToolbarHost(content: RichTextToolbar(context: editorContext, sections: sections))
+    /// Reuses the existing host so toolbar state, like an open color palette, survives SwiftUI updates.
+    private func updateToolbar(of textView: RichTextView) {
+        let host = textView.inputAccessoryView as? KeyboardToolbarHost
+        if let toolbar {
+            let content = RichTextToolbar(context: editorContext, configuration: toolbar)
+            if let host {
+                host.update(content: content)
+                return
+            }
+            textView.inputAccessoryView = KeyboardToolbarHost(content: content)
+        } else {
+            guard host != nil else {
+                return
+            }
+            textView.inputAccessoryView = nil
+        }
         if textView.isFirstResponder {
             textView.reloadInputViews()
         }
-        refreshAfterViewUpdate()
     }
 
     /// Publishing from inside a SwiftUI view update is not allowed, so defer to the next run loop turn.
@@ -117,7 +148,6 @@ struct RichTextViewRepresentable: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: RichTextViewRepresentable
-        var sections: [EditorSection] = []
         /// The last value pushed to or received from the binding.
         var lastSyncedText: NSAttributedString?
         var isApplyingExternalChange = false
@@ -141,6 +171,7 @@ struct RichTextViewRepresentable: UIViewRepresentable {
             guard !isApplyingExternalChange else {
                 return
             }
+            (textView as? RichTextView)?.selectionDidChange()
             parent.editorContext.refresh()
         }
     }
