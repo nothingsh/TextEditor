@@ -11,9 +11,11 @@ final class MarkdownShortcutTests: XCTestCase {
         textView.setContent(NSAttributedString())
     }
 
+    /// One key per run loop turn, like a real keyboard, so each keystroke is its own undo group.
     private func type(_ text: String) {
         for character in text {
             textView.insertText(String(character))
+            RunLoop.current.run(until: Date())
         }
     }
 

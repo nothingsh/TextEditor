@@ -65,7 +65,7 @@ enum HTMLWriter {
     static func inlineHTML(_ segments: [Segment], isHeading: Bool) -> String {
         segments.map { segment in
             if let image = segment.image {
-                return RichTextDocument.dataURI(for: image).map { "<img src=\"\($0)\" alt=\"\">" } ?? ""
+                return "<img src=\"\(ImageAttachments.dataURI(for: image))\" alt=\"\">"
             }
             var html = escaped(segment.text).replacingOccurrences(of: "\u{2028}", with: "<br>")
             let styles = segment.styles
@@ -190,7 +190,7 @@ struct HTMLReader {
                 appendText("\u{2028}")
             }
         case "img":
-            if let source = attributes["src"], let image = RichTextDocument.image(fromDataURI: source) {
+            if let source = attributes["src"], let image = ImageAttachments.payload(fromDataURI: source) {
                 segments.append(Segment(text: "", image: image))
             }
         case "strong", "b":

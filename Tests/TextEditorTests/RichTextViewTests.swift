@@ -91,6 +91,20 @@ final class RichTextViewTests: XCTestCase {
         XCTAssertEqual(textView.textStorage.string, "ab")
     }
 
+    func testWideImportedImagesFitTheEditor() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = true
+        let wide = UIGraphicsImageRenderer(size: CGSize(width: 2000, height: 1000), format: format).image { _ in }
+        let markdown = "![](data:image/jpeg;base64,\(try XCTUnwrap(wide.jpegData(compressionQuality: 0.5)).base64EncodedString()))"
+
+        textView.setContent(RichTextSerializer.attributedString(markdown: markdown))
+        textView.layoutIfNeeded()
+
+        let attachment = try XCTUnwrap(textView.textStorage.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
+        XCTAssertEqual(attachment.bounds.width, 320)
+        XCTAssertEqual(attachment.bounds.height, 160)
+    }
+
     func testPlaceholderShowsOnlyWhenEmpty() {
         textView.placeholder = "Type ..."
         textView.setContent(NSAttributedString())
@@ -110,6 +124,47 @@ final class RichTextViewTests: XCTestCase {
 
         XCTAssertFalse(textView.undoManager!.canUndo)
         XCTAssertEqual(textView.textStorage.attribute(.font, at: 0, effectiveRange: nil) as? UIFont, textView.defaultFont)
+    }
+
+    // MARK: Undo
+
+    /// Typing and formatting share one history and undo in the order they happened.
+    func testTypingAndFormattingUndoInOrder() throws {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 400))
+        window.addSubview(textView)
+        window.makeKeyAndVisible()
+        try XCTSkipUnless(textView.becomeFirstResponder(), "Needs a window to become first responder")
+        textView.setContent(NSAttributedString())
+
+        func settle() {
+            // Typing undo groups close at the end of the run loop turn.
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        textView.insertText("a")
+        settle()
+        textView.insertImage(UIGraphicsImageRenderer(size: CGSize(width: 10, height: 10)).image { _ in })
+        settle()
+        textView.insertText("b")
+        settle()
+        XCTAssertTrue(context.canUndo)
+
+        var states: [String] = []
+        while textView.undoManager?.canUndo == true {
+            textView.undoManager?.undo()
+            states.append(textView.textStorage.string)
+        }
+        XCTAssertEqual(states, ["a\u{FFFC}", "a", ""])
+
+        while textView.undoManager?.canRedo == true {
+            textView.undoManager?.redo()
+        }
+        XCTAssertEqual(textView.textStorage.string, "a\u{FFFC}b")
+        XCTAssertNotNil(textView.textStorage.attribute(.attachment, at: 1, effectiveRange: nil), "redo restores the image, not just its placeholder character")
+        textView.resignFirstResponder()
+    }
+
+    func testUndoHistoryIsBounded() {
+        XCTAssertEqual(textView.undoManager?.levelsOfUndo, RichTextView.undoLevels)
     }
 
     // MARK: Scrolling
@@ -136,6 +191,24 @@ final class RichTextViewTests: XCTestCase {
         // The caret rect overhangs the last line slightly, and scrolling stops at the end of the content.
         XCTAssertLessThanOrEqual(caret.midY, scrollView.contentOffset.y + scrollView.bounds.height)
         textView.resignFirstResponder()
+    }
+
+    // MARK: Toolbar
+
+    func testToolbarConfigurationEquivalence() {
+        let base = RichTextToolbarConfiguration(sections: [.textStyle], customActions: [
+            RichTextToolbarAction(title: "Quote", systemImage: "text.quote") { _ in },
+        ])
+        var sameButNewClosure = base
+        sameButNewClosure.customActions = [RichTextToolbarAction(title: "Quote", systemImage: "text.quote") { $0.undo() }]
+        var differentSections = base
+        differentSections.sections = [.textStyle, .lists]
+        var differentColors = base
+        differentColors.colors = [RichTextColor("Ink", .label)]
+
+        XCTAssertTrue(base.isEquivalent(to: sameButNewClosure))
+        XCTAssertFalse(base.isEquivalent(to: differentSections))
+        XCTAssertFalse(base.isEquivalent(to: differentColors))
     }
 
     // MARK: Binding

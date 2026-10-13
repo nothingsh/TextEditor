@@ -18,6 +18,12 @@ final class BlockStyleTests: XCTestCase {
         RichTextFormatter.blockStyle(of: textView.textStorage, at: location)
     }
 
+    /// Decorations are computed at the next layout pass.
+    private var decorations: [BlockDecorationView.Decoration] {
+        textView.layoutIfNeeded()
+        return textView.decorationView.decorations
+    }
+
     private func font(at location: Int) -> UIFont {
         textView.textStorage.attribute(.font, at: location, effectiveRange: nil) as! UIFont
     }
@@ -73,7 +79,7 @@ final class BlockStyleTests: XCTestCase {
 
         XCTAssertEqual(RichTextFormatter.blockStyle(in: textView.typingAttributes), .numberedList)
         XCTAssertEqual(context.blockStyle, .numberedList)
-        XCTAssertEqual(textView.decorationView.decorations.map(\.kind), [.number(1)])
+        XCTAssertEqual(decorations.map(\.kind), [.number(1)])
     }
 
     // MARK: Return & Delete
@@ -146,7 +152,7 @@ final class BlockStyleTests: XCTestCase {
 
     func testNumberingRestartsAfterInterruption() {
         textView.setContent(RichTextSerializer.attributedString(markdown: "1. a\n2. b\n\nbreak\n\n1. c"))
-        let numbers = textView.decorationView.decorations.compactMap { decoration -> Int? in
+        let numbers = decorations.compactMap { decoration -> Int? in
             if case .number(let ordinal) = decoration.kind { return ordinal }
             return nil
         }
@@ -155,7 +161,24 @@ final class BlockStyleTests: XCTestCase {
 
     func testConsecutiveCodeLinesShareOneBackground() {
         textView.setContent(RichTextSerializer.attributedString(markdown: "```\none\ntwo\n```"))
-        XCTAssertEqual(textView.decorationView.decorations.map(\.kind), [.codeBackground])
+        XCTAssertEqual(decorations.map(\.kind), [.codeBackground])
+    }
+
+    /// Long documents only get layers near the screen, and the view never draws a document-sized bitmap.
+    func testDecorationLayersStayNearVisibleRegion() {
+        textView.setContent(RichTextSerializer.attributedString(markdown: (1...1500).map { "- item \($0)" }.joined(separator: "\n")))
+        let height = textView.sizeThatFits(CGSize(width: 320, height: CGFloat.greatestFiniteMagnitude)).height
+        textView.frame = CGRect(x: 0, y: 0, width: 320, height: height)
+        XCTAssertEqual(decorations.count, 1500)
+
+        let decorationView = textView.decorationView
+        decorationView.visibleRect = CGRect(x: 0, y: 10_000, width: 320, height: 800)
+        decorationView.layoutIfNeeded()
+
+        XCTAssertGreaterThan(decorationView.renderedLayerCount, 0)
+        XCTAssertLessThan(decorationView.renderedLayerCount, 150)
+        decorationView.layer.displayIfNeeded()
+        XCTAssertNil(decorationView.layer.contents)
     }
 
     // MARK: Links

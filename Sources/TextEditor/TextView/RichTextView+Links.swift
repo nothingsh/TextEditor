@@ -22,7 +22,7 @@ extension RichTextView {
             attributes[.link] = url
             let linkText = NSAttributedString(string: url.absoluteString, attributes: attributes)
             let caret = NSRange(location: range.location + linkText.length, length: 0)
-            replace(range, with: linkText, selecting: caret, actionName: "Add Link")
+            replaceCharacters(in: range, with: linkText, selecting: caret, actionName: "Add Link")
             // Text typed after the link shouldn't extend it.
             typingAttributes[.link] = nil
             return

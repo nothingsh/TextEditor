@@ -29,6 +29,16 @@ public struct RichTextToolbarConfiguration {
     }
 
     public static let `default` = RichTextToolbarConfiguration()
+
+    /// Whether the toolbar would look the same. Custom actions are compared by title and icon,
+    /// since closures can't be compared.
+    func isEquivalent(to other: RichTextToolbarConfiguration) -> Bool {
+        sections == other.sections
+            && colors == other.colors
+            && showsDismissKeyboardButton == other.showsDismissKeyboardButton
+            && customActions.map(\.title) == other.customActions.map(\.title)
+            && customActions.map(\.systemImage) == other.customActions.map(\.systemImage)
+    }
 }
 
 public struct RichTextColor: Hashable {
@@ -56,6 +66,9 @@ public struct RichTextColor: Hashable {
 }
 
 /// A custom toolbar button. The closures receive the editor's context, so actions can read state and run commands.
+///
+/// Actions are identified by their title: the editor rebuilds the toolbar when titles or icons change,
+/// not when only a closure does.
 public struct RichTextToolbarAction: Identifiable {
     public var id: String { title }
     public var title: String
