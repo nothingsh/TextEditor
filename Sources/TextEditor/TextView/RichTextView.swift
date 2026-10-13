@@ -118,6 +118,7 @@ final class RichTextView: UITextView {
     }
 
     @objc private func textDidChange() {
+        syncWritingDirections(in: selectedRange)
         updatePlaceholderVisibility()
         setNeedsBlockDecorations()
         setNeedsCaretScroll()
@@ -250,6 +251,7 @@ final class RichTextView: UITextView {
             typingAttributes = defaultAttributes
         }
         editorUndoManager?.removeAllActions()
+        syncWritingDirections()
         fitAttachmentsToWidth()
         setNeedsBlockDecorations()
     }
@@ -405,6 +407,7 @@ final class RichTextView: UITextView {
 
     /// Programmatic storage edits don't reach the delegate on their own.
     func didEditProgrammatically() {
+        syncWritingDirections()
         updatePlaceholderVisibility()
         setNeedsBlockDecorations()
         delegate?.textViewDidChange?(self)

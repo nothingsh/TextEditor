@@ -163,6 +163,28 @@ final class RichTextViewTests: XCTestCase {
         textView.resignFirstResponder()
     }
 
+    /// Writing direction is derived from text, so syncing it must not cost the user their typing history.
+    func testTypingUndoSurvivesWritingDirectionSync() throws {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 400))
+        window.addSubview(textView)
+        window.makeKeyAndVisible()
+        try XCTSkipUnless(textView.becomeFirstResponder(), "Needs a window to become first responder")
+        textView.setContent(RichTextSerializer.attributedString(markdown: "- item"))
+        textView.selectedRange = NSRange(location: textView.textStorage.length, length: 0)
+
+        for character in " عربي" {
+            textView.insertText(String(character))
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertEqual(textView.textStorage.string, "item عربي")
+
+        while textView.undoManager?.canUndo == true {
+            textView.undoManager?.undo()
+        }
+        XCTAssertEqual(textView.textStorage.string, "item")
+        textView.resignFirstResponder()
+    }
+
     func testUndoHistoryIsBounded() {
         XCTAssertEqual(textView.undoManager?.levelsOfUndo, RichTextView.undoLevels)
     }
@@ -225,6 +247,10 @@ final class RichTextViewTests: XCTestCase {
             var overflow = ToolbarScrollOverflow(); overflow.leading = true; overflow.trailing = true; return overflow
         }())
         XCTAssertEqual(ToolbarScrollOverflow(offset: 280, contentWidth: 600, viewportWidth: 320).trailing, false)
+        // Offsets are measured from the leading edge, which is on the right in right-to-left layouts.
+        let atStart = ToolbarScrollOverflow(offset: 0, contentWidth: 600, viewportWidth: 320)
+        XCTAssertTrue(atStart.edges(in: .leftToRight) == (left: false, right: true))
+        XCTAssertTrue(atStart.edges(in: .rightToLeft) == (left: true, right: false))
         // Before the viewport is measured, nothing fades.
         XCTAssertEqual(ToolbarScrollOverflow(offset: 0, contentWidth: 600, viewportWidth: 0), ToolbarScrollOverflow())
     }

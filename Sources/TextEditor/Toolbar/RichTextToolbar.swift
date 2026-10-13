@@ -227,7 +227,8 @@ struct ToolbarIcon: View {
 
 // MARK: - Scrolling
 
-/// Which edges of a scrolling row have more content beyond them.
+/// Which edges of a scrolling row have more content beyond them, in layout terms:
+/// SwiftUI reports scroll offsets from the leading edge, so in right-to-left layouts leading is the right side.
 struct ToolbarScrollOverflow: Equatable {
     var leading = false
     var trailing = false
@@ -242,6 +243,11 @@ struct ToolbarScrollOverflow: Equatable {
     }
 
     init() {}
+
+    /// Whether the physical left and right edges should fade.
+    func edges(in layoutDirection: LayoutDirection) -> (left: Bool, right: Bool) {
+        layoutDirection == .rightToLeft ? (trailing, leading) : (leading, trailing)
+    }
 }
 
 /// A horizontal scroll view that fades whichever edge has more content beyond it,
@@ -251,6 +257,7 @@ private struct HorizontalToolbarScrollView<Content: View>: View {
     @ViewBuilder let content: Content
 
     @State private var overflow = ToolbarScrollOverflow()
+    @Environment(\.layoutDirection) private var layoutDirection
 
     var body: some View {
         if fadesEdges {
@@ -285,22 +292,26 @@ private struct HorizontalToolbarScrollView<Content: View>: View {
         }
     }
 
+    /// Built in physical left-to-right terms: in a right-to-left layout an HStack swaps its children,
+    /// but gradient start and end points don't flip, which would put each fade's clear end on the inside.
     private var fadeMask: some View {
-        HStack(spacing: 0) {
+        let edges = overflow.edges(in: layoutDirection)
+        return HStack(spacing: 0) {
             LinearGradient(
-                colors: [.black.opacity(overflow.leading ? 0 : 1), .black],
+                colors: [.black.opacity(edges.left ? 0 : 1), .black],
                 startPoint: .leading,
                 endPoint: .trailing
             )
             .frame(width: ToolbarScrollMetrics.fadeWidth)
             Rectangle()
             LinearGradient(
-                colors: [.black, .black.opacity(overflow.trailing ? 0 : 1)],
+                colors: [.black, .black.opacity(edges.right ? 0 : 1)],
                 startPoint: .leading,
                 endPoint: .trailing
             )
             .frame(width: ToolbarScrollMetrics.fadeWidth)
         }
+        .environment(\.layoutDirection, .leftToRight)
         .animation(.easeOut(duration: 0.15), value: overflow)
     }
 }

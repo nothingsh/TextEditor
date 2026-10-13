@@ -139,6 +139,45 @@ extension RichTextView {
         }
     }
 
+    // MARK: Writing Direction
+
+    /// Gives indented paragraphs an explicit writing direction that matches their text.
+    ///
+    /// TextKit indents a `.natural` paragraph by the system direction, not its text, so in a right-to-left
+    /// locale an English list item would be indented on the wrong side, and vice versa. The direction is
+    /// derived from content, so it's set without an undo action and recomputed as the text changes.
+    func syncWritingDirections(in range: NSRange? = nil) {
+        guard markedTextRange == nil, textStorage.length > 0 else {
+            return
+        }
+        let searchRange = range.map { RichTextFormatter.paragraphRange(in: textStorage, for: $0) }
+            ?? NSRange(location: 0, length: textStorage.length)
+        let string = textStorage.string as NSString
+        var changes: [(NSRange, NSParagraphStyle)] = []
+
+        for paragraph in RichTextFormatter.paragraphRanges(in: textStorage, range: searchRange) where paragraph.length > 0 {
+            let attributes = textStorage.attributes(at: paragraph.location, effectiveRange: nil)
+            let block = RichTextFormatter.blockStyle(in: attributes)
+            let style = attributes[.paragraphStyle] as? NSParagraphStyle ?? .default
+            let wanted: NSWritingDirection = block.indent > 0
+                ? RichTextFormatter.writingDirection(of: string.substring(with: paragraph)) ?? .natural
+                : .natural
+            if style.baseWritingDirection != wanted, let updated = style.mutableCopy() as? NSMutableParagraphStyle {
+                updated.baseWritingDirection = wanted
+                changes.append((paragraph, updated))
+            }
+        }
+        guard !changes.isEmpty else {
+            return
+        }
+        textStorage.beginEditing()
+        for (paragraph, style) in changes {
+            textStorage.addAttribute(.paragraphStyle, value: style, range: paragraph)
+        }
+        textStorage.endEditing()
+        setNeedsBlockDecorations()
+    }
+
     var isCaretInEmptyParagraph: Bool {
         let paragraph = RichTextFormatter.paragraphRange(in: textStorage, for: selectedRange)
         let content = (textStorage.string as NSString).substring(with: paragraph)
@@ -159,6 +198,7 @@ extension RichTextView {
         var ordinal = 0
 
         func append(_ block: BlockStyle, frame: CGRect, baseline: CGFloat, attributes: RichTextFormatter.Attributes) {
+            let isRightToLeft = RichTextFormatter.isRightToLeft(attributes)
             ordinal = block == .numberedList ? (previousBlock == .numberedList ? ordinal + 1 : 1) : 0
             previousBlock = block
 
@@ -173,7 +213,8 @@ extension RichTextView {
             var frame = frame
             // Consecutive code lines share one background, and consecutive quote paragraphs one bar.
             let isMergeable = kind == .codeBackground || kind == .quoteBar
-            if isMergeable, let last = decorations.last, last.kind == kind, abs(last.frame.maxY - frame.minY) < 1 {
+            if isMergeable, let last = decorations.last, last.kind == kind, last.isRightToLeft == isRightToLeft,
+               abs(last.frame.maxY - frame.minY) < 1 {
                 frame = last.frame.union(frame)
                 decorations.removeLast()
             }
@@ -182,6 +223,7 @@ extension RichTextView {
                 frame: frame,
                 baseline: baseline,
                 indent: block.indent,
+                isRightToLeft: isRightToLeft,
                 font: RichTextFormatter.font(in: attributes, defaultFont: defaultFont),
                 color: attributes[.foregroundColor] as? UIColor ?? defaultTextColor
             ))

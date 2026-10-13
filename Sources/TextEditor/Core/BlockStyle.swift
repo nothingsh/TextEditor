@@ -112,6 +112,40 @@ extension RichTextFormatter {
         return styles.count == 1 ? styles.first : nil
     }
 
+    // MARK: Writing Direction
+
+    /// The direction of the first strongly directional character, or `nil` for text without one,
+    /// such as an empty paragraph or one with only digits and punctuation.
+    static func writingDirection(of text: String) -> NSWritingDirection? {
+        for scalar in text.unicodeScalars {
+            if isRightToLeftScript(scalar) {
+                return .rightToLeft
+            }
+            if CharacterSet.letters.contains(scalar) {
+                return .leftToRight
+            }
+        }
+        return nil
+    }
+
+    /// Hebrew, Arabic, Syriac, Thaana, N'Ko and related blocks, plus their presentation forms.
+    private static func isRightToLeftScript(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x0590...0x08FF, 0xFB1D...0xFDFF, 0xFE70...0xFEFF, 0x10800...0x10FFF, 0x1E800...0x1EFFF:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Which side a paragraph's indent, and so its marker, is on. TextKit indents `.natural` paragraphs
+    /// by the system's default direction rather than by their text, so that's the fallback here too.
+    static func isRightToLeft(_ attributes: Attributes) -> Bool {
+        let direction = (attributes[.paragraphStyle] as? NSParagraphStyle)?.baseWritingDirection ?? .natural
+        let resolved = direction == .natural ? NSParagraphStyle.defaultWritingDirection(forLanguage: nil) : direction
+        return resolved == .rightToLeft
+    }
+
     // MARK: Writing Blocks
 
     /// Applies `block` to one paragraph's attributes: the marker, indentation and, for headings and code, the font.
