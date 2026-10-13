@@ -109,6 +109,12 @@ public final class RichTextContext: ObservableObject {
         textView?.presentImagePicker()
     }
 
+    /// Shows the system find bar, with a replace field when `showingReplace` is true.
+    /// On a hardware keyboard, ⌘F, ⌘G and ⌥⌘F do the same.
+    public func presentFindNavigator(showingReplace: Bool = false) {
+        textView?.presentFindNavigator(showingReplace: showingReplace)
+    }
+
     /// Undoes the last edit, whether typing or formatting.
     public func undo() {
         textView?.editorUndoManager?.undo()

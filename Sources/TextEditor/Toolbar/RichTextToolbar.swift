@@ -119,6 +119,10 @@ public struct RichTextToolbar: View {
             ToolbarButton("Insert Image", systemImage: "photo") {
                 context.presentImagePicker()
             }
+        case .find:
+            ToolbarButton("Find and Replace", systemImage: "magnifyingglass") {
+                context.presentFindNavigator(showingReplace: true)
+            }
         case .history:
             ToolbarButton("Undo", systemImage: "arrow.uturn.backward") {
                 context.undo()

@@ -272,4 +272,36 @@ final class RichTextViewTests: XCTestCase {
         XCTAssertEqual(font?.hasTrait(.traitBold), true)
         XCTAssertTrue(coordinator.lastSyncedText === bound)
     }
+
+    // MARK: Keyboard and Find
+
+    func testKeyCommandsAreUniqueAndListed() {
+        let commands = textView.keyCommands ?? []
+        let editorCommands = commands.filter { $0.action == #selector(RichTextView.performEditorKeyCommand(_:)) }
+        XCTAssertEqual(editorCommands.count, EditorKeyCommand.allCases.count)
+        let shortcuts = Set(editorCommands.map { "\($0.modifierFlags.rawValue)-\($0.input ?? "")" })
+        XCTAssertEqual(shortcuts.count, editorCommands.count)
+    }
+
+    func testKeyCommandsFormat() {
+        textView.setContent(NSAttributedString(string: "Hello"))
+        textView.selectedRange = NSRange(location: 0, length: 5)
+
+        textView.perform(.heading2)
+        XCTAssertEqual(context.blockStyle, .heading2)
+        textView.perform(.heading2)
+        XCTAssertEqual(context.blockStyle, .paragraph)
+
+        textView.perform(.strikethrough)
+        XCTAssertTrue(context.isActive(.strikethrough))
+        textView.perform(.numberedList)
+        XCTAssertEqual(context.blockStyle, .numberedList)
+        textView.perform(.body)
+        XCTAssertEqual(context.blockStyle, .paragraph)
+    }
+
+    func testFindInteractionIsEnabled() {
+        XCTAssertTrue(textView.isFindInteractionEnabled)
+        XCTAssertNotNil(textView.findInteraction)
+    }
 }

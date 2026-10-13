@@ -21,6 +21,8 @@ public enum EditorSection: CaseIterable, Hashable {
     case link
     /// Inserts an image from the photo library.
     case image
+    /// Opens the system find and replace bar.
+    case find
     /// Undo and redo.
     case history
 }

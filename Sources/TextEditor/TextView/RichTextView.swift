@@ -89,6 +89,7 @@ final class RichTextView: UITextView {
         typingAttributes = defaultAttributes
         // Enables the B/I/U edit menu and ⌘B/⌘I/⌘U, routed to our own undoable commands below.
         allowsEditingTextAttributes = true
+        isFindInteractionEnabled = true
         setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
 
@@ -202,6 +203,32 @@ final class RichTextView: UITextView {
         // A little margin so the line isn't flush against the toolbar. Not animated, so fast typing never lags behind.
         let target = convert(caret, to: scrollView).insetBy(dx: 0, dy: -12)
         scrollView.scrollRectToVisible(target, animated: false)
+    }
+
+    /// Find and replace reveal each match with this. The editor doesn't scroll itself, so reveal it in the enclosing scroll view.
+    override func scrollRangeToVisible(_ range: NSRange) {
+        guard !isScrollEnabled else {
+            super.scrollRangeToVisible(range)
+            return
+        }
+        guard let scrollView = enclosingScrollView,
+              let start = position(from: beginningOfDocument, offset: range.location),
+              let end = position(from: start, offset: range.length),
+              let textRange = textRange(from: start, to: end) else {
+            return
+        }
+        let rect = firstRect(for: textRange).union(caretRect(for: end))
+        guard !rect.isNull, !rect.isInfinite else {
+            return
+        }
+        scrollView.scrollRectToVisible(convert(rect, to: scrollView).insetBy(dx: 0, dy: -24), animated: true)
+    }
+
+    func presentFindNavigator(showingReplace: Bool) {
+        if !isFirstResponder {
+            becomeFirstResponder()
+        }
+        findInteraction?.presentFindNavigator(showingReplace: showingReplace)
     }
 
     /// The nearest scrolling ancestor, such as the `UIScrollView` behind a SwiftUI `ScrollView`.
