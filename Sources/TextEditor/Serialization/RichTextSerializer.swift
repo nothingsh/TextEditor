@@ -14,14 +14,30 @@ import UniformTypeIdentifiers
 /// | HTML     | blocks, inline styles, links, colors, alignment, images            | font sizes                         |
 /// | Markdown | blocks, bold, italic, strikethrough, code, links, images           | underline, colors, sizes, alignment |
 ///
-/// Images are embedded as base64 `data:` URIs in HTML and Markdown.
+/// Images are embedded as base64 `data:` URIs in HTML and Markdown. On import, only `data:` URI images
+/// are loaded; remote images are never fetched, so Markdown keeps them as a link and HTML drops them.
+///
+/// The `defaultFont` and `textColor` parameters describe the editor's body text. On export they tell
+/// which runs are styled and which are plain; on import they're the font and color given to plain text.
+/// The editor uses the body text style and `.label`, the defaults here.
 public enum RichTextSerializer {
     // MARK: Markdown
 
+    /// CommonMark with GitHub-style strikethrough.
+    ///
+    /// - Parameters:
+    ///   - text: The document to write.
+    ///   - defaultFont: The body font, so headings and inline styles are told apart from body text.
     public static func markdown(from text: NSAttributedString, defaultFont: UIFont = .preferredFont(forTextStyle: .body)) -> String {
         MarkdownWriter.markdown(from: RichTextDocument.paragraphs(of: text, defaultFont: defaultFont, defaultTextColor: .label))
     }
 
+    /// Reads CommonMark, including GitHub-style strikethrough.
+    ///
+    /// - Parameters:
+    ///   - markdown: The Markdown source.
+    ///   - defaultFont: The body font; headings and code are derived from it.
+    ///   - textColor: The color of text without an explicit color.
     public static func attributedString(
         markdown: String,
         defaultFont: UIFont = .preferredFont(forTextStyle: .body),
@@ -33,10 +49,26 @@ public enum RichTextSerializer {
     // MARK: HTML
 
     /// An HTML fragment, without `<html>` or `<body>`, ready to embed in a page.
-    public static func html(from text: NSAttributedString, defaultFont: UIFont = .preferredFont(forTextStyle: .body)) -> String {
-        HTMLWriter.html(from: RichTextDocument.paragraphs(of: text, defaultFont: defaultFont, defaultTextColor: .label))
+    ///
+    /// - Parameters:
+    ///   - text: The document to write.
+    ///   - defaultFont: The body font, so headings and inline styles are told apart from body text.
+    ///   - textColor: The body text color. Text in this color gets no `color` style, so the page's own color applies.
+    public static func html(
+        from text: NSAttributedString,
+        defaultFont: UIFont = .preferredFont(forTextStyle: .body),
+        textColor: UIColor = .label
+    ) -> String {
+        HTMLWriter.html(from: RichTextDocument.paragraphs(of: text, defaultFont: defaultFont, defaultTextColor: textColor))
     }
 
+    /// Reads everyday HTML. Unclosed tags, unknown tags and entities are fine, and `<script>`, `<style>`
+    /// and `<head>` contents are dropped. Links with unsafe schemes such as `javascript:` are removed.
+    ///
+    /// - Parameters:
+    ///   - html: An HTML document or fragment.
+    ///   - defaultFont: The body font; headings and code are derived from it.
+    ///   - textColor: The color of text without an explicit color.
     public static func attributedString(
         html: String,
         defaultFont: UIFont = .preferredFont(forTextStyle: .body),
@@ -64,6 +96,10 @@ public enum RichTextSerializer {
         return try NSKeyedArchiver.archivedData(withRootObject: archivable, requiringSecureCoding: true)
     }
 
+    /// Restores a document saved with ``archivedData(from:)``.
+    ///
+    /// - Throws: An error if `data` isn't an archived attributed string, or holds classes other than
+    ///   the text, font, color, paragraph style, link and attachment types the editor writes.
     public static func attributedString(archivedData data: Data) throws -> NSAttributedString {
         let allowedClasses: [AnyClass] = [
             NSAttributedString.self, NSMutableAttributedString.self, NSString.self, NSNumber.self, NSData.self,

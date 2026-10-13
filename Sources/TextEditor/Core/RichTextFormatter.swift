@@ -7,9 +7,13 @@ import UIKit
 
 /// Character styles that can be toggled on and off.
 public enum TextStyle: CaseIterable, Hashable {
+    /// Bold, keeping the font family.
     case bold
+    /// Italic, keeping the font family.
     case italic
+    /// A single underline.
     case underline
+    /// A single strikethrough line.
     case strikethrough
     /// Inline code, shown in a monospaced font.
     case code

@@ -9,16 +9,27 @@ import UIKit
 ///
 /// The style is stored in the `.blockStyle` attribute, never as marker characters in the text,
 /// so bullets and numbers can't be edited by accident and serializers see clean content.
+///
+/// Raw values are stored in archived documents, so they never change.
 public enum BlockStyle: String, CaseIterable, Hashable {
+    /// Body text.
     case paragraph
+    /// The largest heading, shown bold at 1.6 times the body size.
     case heading1
+    /// A heading shown bold at 1.35 times the body size.
     case heading2
+    /// A heading shown bold at 1.15 times the body size.
     case heading3
+    /// A bulleted list item.
     case bulletList
+    /// A numbered list item, numbered from 1 within each run of consecutive items.
     case numberedList
+    /// A block quote, marked with a bar at its leading edge.
     case quote
+    /// A line of a code block, in a monospaced font on a shaded background.
     case codeBlock
 
+    /// 1, 2 or 3 for headings, `nil` otherwise.
     public var headingLevel: Int? {
         switch self {
         case .heading1: return 1
@@ -28,6 +39,7 @@ public enum BlockStyle: String, CaseIterable, Hashable {
         }
     }
 
+    /// Whether this is a bulleted or numbered list item.
     public var isList: Bool {
         self == .bulletList || self == .numberedList
     }
@@ -37,6 +49,7 @@ public enum BlockStyle: String, CaseIterable, Hashable {
     }
 
     /// Lists and quotes continue on Return and are removed by Return on an empty line or Delete at its start.
+    /// Code blocks also continue on Return, but only Delete at a line's start removes them, so blank code lines stay possible.
     var continuesOnReturn: Bool {
         isList || self == .quote
     }

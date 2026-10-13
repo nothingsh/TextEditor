@@ -12,7 +12,7 @@ Store drafts losslessly and exchange content as Markdown or HTML.
 | HTML     | Blocks, inline styles, links, colors, alignment, images  | Font sizes                          |
 | Markdown | Blocks, bold, italic, strikethrough, code, links, images | Underline, colors, sizes, alignment |
 
-Images are embedded as base64 `data:` URIs in HTML and Markdown, so exported documents are self-contained.
+Images are embedded as base64 `data:` URIs in HTML and Markdown, so exported documents are self-contained. On import, only `data:` URI images are loaded: remote images are never fetched, so Markdown keeps them as a link and HTML drops them.
 
 ## Save a Draft
 
@@ -35,8 +35,17 @@ text = RichTextSerializer.attributedString(markdown: markdown)
 text = RichTextSerializer.attributedString(html: html)
 ```
 
-The HTML output is a fragment without `<html>` or `<body>`, ready to embed. The HTML reader is forgiving: unclosed tags, unknown tags and entities are fine, and `<script>` and `<style>` contents are dropped.
+The HTML output is a fragment without `<html>` or `<body>`, ready to embed. The HTML reader is forgiving: unclosed tags, unknown tags and entities are fine, and `<script>`, `<style>` and `<head>` contents are dropped.
+
+The serializers assume the editor's body font and `.label` text color. If you import with a different `textColor`, pass the same color when exporting HTML, so plain text isn't written with an explicit color:
+
+```swift
+text = RichTextSerializer.attributedString(html: html, textColor: .black)
+let exported = RichTextSerializer.html(from: text, textColor: .black)
+```
 
 ## Link Safety
 
-Only `http`, `https`, `mailto`, `tel` and relative links are kept. Links with other schemes, such as `javascript:`, are removed on import and export and rejected when set in the editor, so exported HTML can't carry script through link targets.
+Only `http`, `https`, `mailto`, `tel` and relative links are kept. Links with other schemes, such as `javascript:`, are removed when importing Markdown or HTML, rejected by ``RichTextContext/setLink(_:)`` and the link editor, and removed again on export, so exported HTML can't carry script through link targets.
+
+Text that reaches the editor another way, such as pasted rich text or an attributed string you assign to the binding, keeps its links as they are until it's exported. The archive format stores them unchanged.

@@ -1,5 +1,7 @@
-// swift-tools-version:5.9
+// swift-tools-version:6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
+// 6.0 (Xcode 16) is the minimum because the toolbar uses SwiftUI geometry APIs from the iOS 18 SDK,
+// back-deployed to iOS 16. The sources still build in the Swift 5 language mode.
 
 import PackageDescription
 
@@ -17,5 +19,6 @@ let package = Package(
         .testTarget(
             name: "TextEditorTests",
             dependencies: ["TextEditor"]),
-    ]
+    ],
+    swiftLanguageModes: [.v5]
 )

@@ -6,8 +6,8 @@
 import UIKit
 
 /// Markdown typed in a plain paragraph turns into formatting as you go:
-/// `# `, `- `, `1. `, `> ` and ```` ``` ```` at the start of a paragraph, and `**bold**`, `*italic*`,
-/// `` `code` `` and `~~strikethrough~~` once their closing marker is typed.
+/// `# `, `- `, `1. `, `1) `, `> ` and ```` ``` ```` at the start of a paragraph, and `**bold**`, `__bold__`,
+/// `*italic*`, `_italic_`, `` `code` `` and `~~strikethrough~~` once their closing marker is typed.
 ///
 /// Each conversion is a single undo step that brings back the literal Markdown.
 extension RichTextView {
@@ -119,10 +119,9 @@ extension RichTextView {
     }
 
     private func performAsOneUndoStep(actionName: String, _ changes: () -> Void) {
-        let undoManager = undoManager
-        undoManager?.beginUndoGrouping()
+        editorUndoManager?.beginUndoGrouping()
         changes()
-        undoManager?.setActionName(actionName)
-        undoManager?.endUndoGrouping()
+        editorUndoManager?.setActionName(actionName)
+        editorUndoManager?.endUndoGrouping()
     }
 }

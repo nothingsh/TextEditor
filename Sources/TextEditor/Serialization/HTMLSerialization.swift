@@ -61,8 +61,10 @@ enum HTMLWriter {
         return direction + alignmentAttribute(paragraph)
     }
 
+    /// Explicit left alignment is written too: in a right-to-left paragraph it differs from the default.
     private static func alignmentAttribute(_ paragraph: Paragraph) -> String {
         switch paragraph.alignment {
+        case .left: return " style=\"text-align: left\""
         case .center: return " style=\"text-align: center\""
         case .right: return " style=\"text-align: right\""
         case .justified: return " style=\"text-align: justify\""
@@ -102,7 +104,8 @@ enum HTMLWriter {
 }
 
 /// A forgiving reader for everyday HTML: unclosed tags, unknown tags and entities are all fine.
-/// Unknown tags are skipped but their text is kept; `<script>` and `<style>` contents are dropped.
+/// Unknown tags are skipped but their text is kept; `<script>`, `<style>` and `<head>` contents are dropped.
+/// Only `data:` URI images are loaded; remote images are dropped, since they can't be fetched here.
 struct HTMLReader {
     typealias Paragraph = RichTextDocument.Paragraph
     typealias Segment = RichTextDocument.Segment

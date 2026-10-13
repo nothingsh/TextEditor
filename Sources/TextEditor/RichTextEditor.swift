@@ -16,15 +16,17 @@ public struct RichTextEditor: View {
     private let placeholder: String
     private let toolbar: RichTextToolbarConfiguration?
 
+    /// Creates an editor whose keyboard toolbar shows the given sections.
+    ///
     /// - Parameters:
-    ///   - text: The document. Updated on every edit.
+    ///   - text: The document. Updated on every edit. Setting it from outside replaces the document and clears undo.
     ///   - context: Pass your own context to read formatting state or drive the editor from custom controls.
     ///   - placeholder: Shown while the document is empty.
     ///   - toolbar: Toolbar sections in display order. Pass an empty array to hide the toolbar.
     public init(
         text: Binding<NSAttributedString>,
         context: RichTextContext? = nil,
-        placeholder: String = "Type ...",
+        placeholder: String = "Type…",
         toolbar: [EditorSection] = EditorSection.allCases
     ) {
         self.init(
@@ -35,15 +37,17 @@ public struct RichTextEditor: View {
         )
     }
 
+    /// Creates an editor with a fully configured keyboard toolbar, such as one with custom colors or actions.
+    ///
     /// - Parameters:
-    ///   - text: The document. Updated on every edit.
+    ///   - text: The document. Updated on every edit. Setting it from outside replaces the document and clears undo.
     ///   - context: Pass your own context to read formatting state or drive the editor from custom controls.
     ///   - placeholder: Shown while the document is empty.
     ///   - toolbar: The keyboard toolbar's configuration, or `nil` for no keyboard toolbar.
     public init(
         text: Binding<NSAttributedString>,
         context: RichTextContext? = nil,
-        placeholder: String = "Type ...",
+        placeholder: String = "Type…",
         toolbar: RichTextToolbarConfiguration?
     ) {
         self._text = text
