@@ -1,5 +1,5 @@
 # TextEditor
-<img src="https://img.shields.io/badge/PLATFORM-IOS%2016+-lightgray?style=for-the-badge" />&nbsp;&nbsp;&nbsp;<img src="https://img.shields.io/badge/LICENSE-MIT-lightgray?style=for-the-badge" />&nbsp;&nbsp;&nbsp;<img src="https://img.shields.io/badge/MADE WITH-SWIFTUI%20%2B%20TEXTKIT%202-orange?style=for-the-badge" />
+<a href="https://github.com/nothingsh/TextEditor/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/nothingsh/TextEditor/ci.yml?branch=main&label=CI&style=for-the-badge" /></a>&nbsp;&nbsp;&nbsp;<img src="https://img.shields.io/badge/PLATFORM-IOS%2016+-lightgray?style=for-the-badge" />&nbsp;&nbsp;&nbsp;<img src="https://img.shields.io/badge/LICENSE-MIT-lightgray?style=for-the-badge" />&nbsp;&nbsp;&nbsp;<img src="https://img.shields.io/badge/MADE WITH-SWIFTUI%20%2B%20TEXTKIT%202-orange?style=for-the-badge" />
 
 A SwiftUI rich text editor backed by `UITextView`, with a formatting toolbar above the keyboard.
 
