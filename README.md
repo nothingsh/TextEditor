@@ -12,12 +12,16 @@ A SwiftUI rich text editor backed by `UITextView`, with a formatting toolbar abo
 ## Features
 
 - Bold, italic, underline, strikethrough and inline code, which combine freely and keep the font family
-- Headings, bulleted and numbered lists, quotes and code blocks, with Return and Delete behaving as in Notes
+- Headings, bulleted and numbered lists, checklists, quotes and code blocks, with Return and Delete behaving as in Notes
+- Lists nest up to six levels deep with Tab and Shift-Tab; checkboxes tick with a tap
 - Links, font size, text color and per-paragraph alignment
 - Images inserted at the caret through the system photo picker (no permission prompt)
-- Markdown shortcuts while typing: `# `, `- `, `1. `, `> `, `**bold**`, `*italic*`, `_italic_`, `~~strike~~` and backticks
+- Markdown shortcuts while typing: `# `, `- `, `1. `, `[ ] `, `> `, `**bold**`, `*italic*`, `_italic_`, `~~strike~~` and backticks
 - Markdown, HTML and lossless archive import and export
-- Undo and redo for every edit, including formatting; ⌘B, ⌘I and ⌘U on hardware keyboards
+- Pasted rich text from Safari, Notes, Pages or Google Docs is rebuilt in the editor's styles, so foreign fonts and sizes stay out
+- Find and replace
+- Undo and redo for every edit, including formatting
+- Hardware keyboard shortcuts for every style, listed in the iPad ⌘ overlay
 - A configurable toolbar whose state follows the selection, with dark mode and VoiceOver support
 
 ## Usage
@@ -38,7 +42,24 @@ struct ContentView: View {
 }
 ```
 
-The editor grows with its content, so place it in a `ScrollView` for long documents.
+The editor grows with its content, so place it in a `ScrollView`. For long documents, let the editor scroll itself instead: it then only lays out the text on screen, so typing stays fast however long the document gets.
+
+```swift
+RichTextEditor(text: $text)
+    .scrollsContent()
+    .padding(.horizontal)
+```
+
+### Keyboard shortcuts
+
+| Shortcut | Action | Shortcut | Action |
+|---|---|---|---|
+| ⌘B, ⌘I, ⌘U | Bold, italic, underline | ⌥⌘0 | Body |
+| ⇧⌘X | Strikethrough | ⌥⌘1, ⌥⌘2, ⌥⌘3 | Headings |
+| ⌘E | Inline code | ⇧⌘8, ⇧⌘7, ⇧⌘L | Bulleted, numbered, checklist |
+| ⌘K | Link | ⇧⌘U | Tick checklist items |
+| ⌘=, ⌘- | Font size | Tab, ⇧Tab, ⌘], ⌘[ | Nest and unnest list items |
+| ⌘F, ⌥⌘F | Find, find and replace | ⌘', ⌥⌘C | Quote, code block |
 
 ### Markdown shortcuts
 
@@ -88,8 +109,8 @@ text = try RichTextSerializer.attributedString(archivedData: data)
 | Format   | Keeps                                                    | Drops                                |
 |----------|----------------------------------------------------------|--------------------------------------|
 | Archive  | everything                                               | nothing — use it for drafts          |
-| HTML     | blocks, inline styles, links, colors, alignment, images  | font sizes                           |
-| Markdown | blocks, bold, italic, strikethrough, code, links, images | underline, colors, sizes, alignment  |
+| HTML     | blocks, nested lists, checkboxes, inline styles, links, colors, alignment, images | font sizes |
+| Markdown | blocks, nested lists, task items, bold, italic, strikethrough, code, links, images | underline, colors, sizes, alignment |
 
 Images are embedded as base64 `data:` URIs in HTML and Markdown. On import, only `data:` URI images are loaded; remote images are never fetched, so Markdown keeps them as a link and HTML drops them.
 
@@ -143,6 +164,6 @@ Add the package in Xcode via **File › Add Package Dependencies…**, or in `Pa
 - [x] HTML and Markdown import and export
 - [x] Configurable toolbar items and colors
 - [x] Markdown shortcuts while typing
-- [ ] Checklists and nested lists
+- [x] Checklists and nested lists
 - [ ] Font selection
 - [ ] macOS support

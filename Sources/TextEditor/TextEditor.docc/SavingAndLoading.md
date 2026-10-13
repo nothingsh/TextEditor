@@ -9,8 +9,8 @@ Store drafts losslessly and exchange content as Markdown or HTML.
 | Format   | Keeps                                                    | Drops                               |
 |----------|----------------------------------------------------------|-------------------------------------|
 | Archive  | Everything                                               | Nothing                             |
-| HTML     | Blocks, inline styles, links, colors, alignment, images  | Font sizes                          |
-| Markdown | Blocks, bold, italic, strikethrough, code, links, images | Underline, colors, sizes, alignment |
+| HTML     | Blocks, nested lists, checkboxes, inline styles, links, colors, alignment, images | Font sizes |
+| Markdown | Blocks, nested lists, task items, bold, italic, strikethrough, code, links, images | Underline, colors, sizes, alignment |
 
 Images are embedded as base64 `data:` URIs in HTML and Markdown, so exported documents are self-contained. On import, only `data:` URI images are loaded: remote images are never fetched, so Markdown keeps them as a link and HTML drops them.
 
@@ -48,4 +48,4 @@ let exported = RichTextSerializer.html(from: text, textColor: .black)
 
 Only `http`, `https`, `mailto`, `tel` and relative links are kept. Links with other schemes, such as `javascript:`, are removed when importing Markdown or HTML, rejected by ``RichTextContext/setLink(_:)`` and the link editor, and removed again on export, so exported HTML can't carry script through link targets.
 
-Text that reaches the editor another way, such as pasted rich text or an attributed string you assign to the binding, keeps its links as they are until it's exported. The archive format stores them unchanged.
+Rich text pasted from other apps is rebuilt the same way as imported HTML, so unsafe links are removed. Text copied within the editor, and attributed strings you assign to the binding, keep their links as they are until they're exported. The archive format stores them unchanged.

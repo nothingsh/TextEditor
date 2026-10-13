@@ -11,8 +11,8 @@ import UniformTypeIdentifiers
 /// | Format   | Keeps                                                              | Drops                              |
 /// |----------|--------------------------------------------------------------------|------------------------------------|
 /// | Archive  | everything                                                         | nothing                            |
-/// | HTML     | blocks, inline styles, links, colors, alignment, images            | font sizes                         |
-/// | Markdown | blocks, bold, italic, strikethrough, code, links, images           | underline, colors, sizes, alignment |
+/// | HTML     | blocks, nested lists, checkboxes, inline styles, links, colors, alignment, images | font sizes |
+/// | Markdown | blocks, nested lists, task items, bold, italic, strikethrough, code, links, images | underline, colors, sizes, alignment |
 ///
 /// Images are embedded as base64 `data:` URIs in HTML and Markdown. On import, only `data:` URI images
 /// are loaded; remote images are never fetched, so Markdown keeps them as a link and HTML drops them.
@@ -23,7 +23,7 @@ import UniformTypeIdentifiers
 public enum RichTextSerializer {
     // MARK: Markdown
 
-    /// CommonMark with GitHub-style strikethrough.
+    /// CommonMark with GitHub-style strikethrough and task list items.
     ///
     /// - Parameters:
     ///   - text: The document to write.
@@ -32,7 +32,7 @@ public enum RichTextSerializer {
         MarkdownWriter.markdown(from: RichTextDocument.paragraphs(of: text, defaultFont: defaultFont, defaultTextColor: .label))
     }
 
-    /// Reads CommonMark, including GitHub-style strikethrough.
+    /// Reads CommonMark, including GitHub-style strikethrough and task list items.
     ///
     /// - Parameters:
     ///   - markdown: The Markdown source.

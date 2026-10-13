@@ -17,19 +17,26 @@ var body: some View {
 }
 ```
 
-The editor sizes itself to its content rather than scrolling internally, so place it in a `ScrollView` for long documents.
+The editor sizes itself to its content, so place it in a `ScrollView`. A growing editor lays out the whole document on every edit, which gets slow for long documents. For those, let the editor scroll itself with `scrollsContent(_:)`, and leave out the `ScrollView`; it then only lays out the text on screen:
+
+```swift
+RichTextEditor(text: $text)
+    .scrollsContent()
+    .padding(.horizontal)
+```
 
 Setting the binding from outside replaces the document and clears its undo history.
 
 ## Format Text
 
-People format text with the toolbar above the keyboard, the B/I/U edit menu, hardware keyboard shortcuts (⌘B, ⌘I, ⌘U), or Markdown typed directly:
+People format text with the toolbar above the keyboard, the B/I/U edit menu, hardware keyboard shortcuts (hold ⌘ on iPad to list them), or Markdown typed directly:
 
 | Type at the start of a paragraph | Result          |
 |----------------------------------|-----------------|
 | `#`, `##`, `###` and a space     | Heading         |
 | `-`, `*` or `+` and a space      | Bulleted list   |
 | `1.` or `1)` and a space         | Numbered list   |
+| `[ ]` or `[x]` and a space       | Checklist item  |
 | `>` and a space                  | Quote           |
 | Three backticks and a space      | Code block      |
 
@@ -42,7 +49,7 @@ RichTextEditor(text: $text)
     .markdownShortcuts(false)
 ```
 
-In lists and quotes, Return continues the block, Return on an empty item ends it, and Delete at the start of an item removes its style before joining paragraphs. In code blocks, Return always starts another code line; Delete at the start of a line turns it back into body text. Return at the end of a heading starts a body paragraph.
+In lists and quotes, Return continues the block, Return on an empty item ends it, and Delete at the start of an item removes its style before joining paragraphs. Tab and Shift-Tab, or ⌘] and ⌘[, nest and unnest list items; in a nested item, Return on an empty item and Delete at its start move it out a level first. Tapping a checklist item's circle ticks it. In code blocks, Return always starts another code line; Delete at the start of a line turns it back into body text. Return at the end of a heading starts a body paragraph.
 
 ## Drive the Editor from Your Own Controls
 
