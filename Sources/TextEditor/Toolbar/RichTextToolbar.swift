@@ -45,7 +45,7 @@ public struct RichTextToolbar: View {
 
     private var controls: some View {
         HStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
+            HorizontalToolbarScrollView(fadesEdges: configuration.showsScrollEdgeFade) {
                 HStack(spacing: 2) {
                     ForEach(configuration.sections, id: \.self) { section in
                         items(for: section)
@@ -154,7 +154,7 @@ public struct RichTextToolbar: View {
         // Hug the swatches when they fit; scroll when there are too many.
         ViewThatFits(in: .horizontal) {
             colorSwatches
-            ScrollView(.horizontal, showsIndicators: false) {
+            HorizontalToolbarScrollView(fadesEdges: configuration.showsScrollEdgeFade) {
                 colorSwatches
             }
         }
@@ -222,6 +222,115 @@ struct ToolbarIcon: View {
                 Circle()
                     .fill(isActive ? Color.primary.opacity(0.12) : .clear)
             )
+    }
+}
+
+// MARK: - Scrolling
+
+/// Which edges of a scrolling row have more content beyond them.
+struct ToolbarScrollOverflow: Equatable {
+    var leading = false
+    var trailing = false
+
+    /// Nothing overflows until the viewport has been measured, so a row that fits never flashes a fade.
+    init(offset: CGFloat, contentWidth: CGFloat, viewportWidth: CGFloat) {
+        guard viewportWidth > 0 else {
+            return
+        }
+        leading = offset > 0.5
+        trailing = offset + viewportWidth < contentWidth - 0.5
+    }
+
+    init() {}
+}
+
+/// A horizontal scroll view that fades whichever edge has more content beyond it,
+/// so a row that happens to end on a whole button still reads as scrollable.
+private struct HorizontalToolbarScrollView<Content: View>: View {
+    let fadesEdges: Bool
+    @ViewBuilder let content: Content
+
+    @State private var overflow = ToolbarScrollOverflow()
+
+    var body: some View {
+        if fadesEdges {
+            trackedScrollView
+                .mask(fadeMask)
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                content
+            }
+        }
+    }
+
+    /// Both paths report only the two overflow flags, so scrolling re-renders the row
+    /// only when an edge starts or stops overflowing, not on every frame.
+    @ViewBuilder
+    private var trackedScrollView: some View {
+        if #available(iOS 18.0, *) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                content
+            }
+            .onScrollGeometryChange(for: ToolbarScrollOverflow.self) { geometry in
+                ToolbarScrollOverflow(
+                    offset: geometry.contentOffset.x + geometry.contentInsets.leading,
+                    contentWidth: geometry.contentSize.width,
+                    viewportWidth: geometry.containerSize.width
+                )
+            } action: { _, newValue in
+                overflow = newValue
+            }
+        } else {
+            LegacyTrackedScrollView(overflow: $overflow, content: content)
+        }
+    }
+
+    private var fadeMask: some View {
+        HStack(spacing: 0) {
+            LinearGradient(
+                colors: [.black.opacity(overflow.leading ? 0 : 1), .black],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: ToolbarScrollMetrics.fadeWidth)
+            Rectangle()
+            LinearGradient(
+                colors: [.black, .black.opacity(overflow.trailing ? 0 : 1)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: ToolbarScrollMetrics.fadeWidth)
+        }
+        .animation(.easeOut(duration: 0.15), value: overflow)
+    }
+}
+
+private enum ToolbarScrollMetrics {
+    static let fadeWidth: CGFloat = 20
+}
+
+/// iOS 16 and 17 have no scroll geometry API, so the content's frame in the scroll view's own space
+/// stands in for the offset. Preference keys never refresh when the toolbar is hosted as a keyboard
+/// accessory; geometry changes do.
+private struct LegacyTrackedScrollView<Content: View>: View {
+    @Binding var overflow: ToolbarScrollOverflow
+    let content: Content
+
+    @State private var viewportWidth: CGFloat = 0
+    private let coordinateSpace = "LegacyTrackedScrollView"
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            content
+                .onGeometryChange(for: ToolbarScrollOverflow.self) { proxy in
+                    let frame = proxy.frame(in: .named(coordinateSpace))
+                    return ToolbarScrollOverflow(offset: -frame.minX, contentWidth: frame.width, viewportWidth: viewportWidth)
+                } action: { newValue in
+                    overflow = newValue
+                }
+        }
+        .coordinateSpace(name: coordinateSpace)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
     }
 }
 

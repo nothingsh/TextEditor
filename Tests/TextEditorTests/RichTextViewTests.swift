@@ -205,10 +205,28 @@ final class RichTextViewTests: XCTestCase {
         differentSections.sections = [.textStyle, .lists]
         var differentColors = base
         differentColors.colors = [RichTextColor("Ink", .label)]
+        var withoutFade = base
+        withoutFade.showsScrollEdgeFade = false
 
         XCTAssertTrue(base.isEquivalent(to: sameButNewClosure))
         XCTAssertFalse(base.isEquivalent(to: differentSections))
         XCTAssertFalse(base.isEquivalent(to: differentColors))
+        XCTAssertFalse(base.isEquivalent(to: withoutFade), "toggling the fade must rebuild the keyboard toolbar")
+    }
+
+    func testToolbarScrollOverflow() {
+        // A row that fits never fades.
+        XCTAssertEqual(ToolbarScrollOverflow(offset: 0, contentWidth: 300, viewportWidth: 320), ToolbarScrollOverflow())
+        // At the start of a long row, only the trailing edge has more.
+        XCTAssertEqual(ToolbarScrollOverflow(offset: 0, contentWidth: 600, viewportWidth: 320).trailing, true)
+        XCTAssertEqual(ToolbarScrollOverflow(offset: 0, contentWidth: 600, viewportWidth: 320).leading, false)
+        // In the middle, both; at the end, only leading.
+        XCTAssertEqual(ToolbarScrollOverflow(offset: 100, contentWidth: 600, viewportWidth: 320), {
+            var overflow = ToolbarScrollOverflow(); overflow.leading = true; overflow.trailing = true; return overflow
+        }())
+        XCTAssertEqual(ToolbarScrollOverflow(offset: 280, contentWidth: 600, viewportWidth: 320).trailing, false)
+        // Before the viewport is measured, nothing fades.
+        XCTAssertEqual(ToolbarScrollOverflow(offset: 0, contentWidth: 600, viewportWidth: 0), ToolbarScrollOverflow())
     }
 
     // MARK: Binding
